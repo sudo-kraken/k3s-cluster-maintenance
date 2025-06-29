@@ -1,0 +1,30 @@
+---
+# Main task file for K3s node maintenance role
+- name: Include prerequisite checks
+  include_tasks: prerequisites.yml
+  tags: [always, prerequisites]
+
+- name: Include package update checks
+  include_tasks: package_checks.yml
+  tags: [packages, check_updates]
+
+- name: Include cluster preparation
+  include_tasks: cluster_preparation.yml
+  tags: [cluster, prepare]
+
+- name: Include package updates
+  include_tasks: package_updates.yml
+  tags: [packages, updates]
+
+- name: Include reboot handling
+  include_tasks: reboot_handling.yml
+  tags: [reboot]
+
+- name: Include cluster restoration
+  include_tasks: cluster_restoration.yml
+  tags: [restore]
+
+# Resume task for manual recovery after reboot issues
+- name: Resume after reboot (manual recovery)
+  include_tasks: resume_after_reboot.yml
+  tags: [resume]

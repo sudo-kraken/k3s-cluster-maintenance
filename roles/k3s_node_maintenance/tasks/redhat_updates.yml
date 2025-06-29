@@ -1,0 +1,67 @@
+---
+# RedHat/CentOS package updates
+- name: Parse list of upgradable package names (dnf)
+  set_fact:
+    dnf_packages_to_upgrade: >-
+      {{ dnf_updates_available.results | map(attribute='name') | list }}
+  when: dnf_updates_available.results | length > 0
+  tags: [packages, updates, redhat, parse]
+
+- name: Show pending DNF packages
+  debug:
+    msg: |
+      {{ dnf_packages_to_upgrade | length }} package(s) can be updated:
+      {{ dnf_packages_to_upgrade | join(', ') }}
+  when:
+    - dnf_packages_to_upgrade is defined
+    - dnf_packages_to_upgrade | length > 0
+  tags: [packages, updates, redhat, info]
+
+- name: Update system packages (dnf)
+  become: true
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  register: dnf_upgrade_result
+  when:
+    - dnf_packages_to_upgrade is defined
+    - dnf_packages_to_upgrade | length > 0
+  tags: [packages, updates, redhat, upgrade]
+
+- name: Show package upgrade summary (dnf)
+  debug:
+    msg: |
+      {% if dnf_upgrade_result is defined and dnf_upgrade_result.changed %}
+      Packages upgraded on {{ inventory_hostname }}: {{ dnf_packages_to_upgrade | join(', ') }}
+      {% else %}
+      No packages upgraded on {{ inventory_hostname }}
+      {% endif %}
+  tags: [packages, updates, redhat, report]
+
+- name: Check if reboot required (dnf)
+  become: true
+  shell: |
+    if command -v needs-restarting >/dev/null 2>&1; then
+        needs-restarting -r >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "No"
+        else
+            echo "Yes"
+        fi
+    else
+        if [ "{{ dnf_upgrade_result.changed | default(false) }}" = "True" ]; then
+            echo "{{ dnf_packages_to_upgrade | default([]) | join(' ') }}" | \
+              grep -q -E "(kernel|systemd|linux-firmware|glibc)" && echo "Yes" || echo "No"
+        else
+            echo "No"
+        fi
+    fi
+  register: dnf_reboot_required
+  changed_when: false
+  tags: [packages, updates, redhat, reboot_check]
+
+- name: Show reboot requirement
+  debug:
+    msg: "Reboot required: {{ dnf_reboot_required.stdout }}"
+  tags: [packages, updates, redhat, reboot_check]

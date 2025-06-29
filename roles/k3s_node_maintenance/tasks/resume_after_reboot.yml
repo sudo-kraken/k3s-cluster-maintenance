@@ -1,0 +1,38 @@
+---
+# Resume maintenance after manual reboot or reboot failure
+# This bypasses the reboot_required check and goes straight to restoration
+
+- name: Check current node status
+  delegate_to: localhost
+  shell: |
+    kubectl get node {{ inventory_hostname }} -o json | jq -r '.status.conditions[] | select(.type=="Ready") | .status'
+  register: node_status
+  tags: [resume, status]
+
+- name: Wait for node to become Ready (if not already)
+  delegate_to: localhost
+  shell: |
+    set -o pipefail
+    echo "Waiting for node {{ inventory_hostname }} to become Ready..."
+    
+    # Keep checking until the node is Ready
+    while true; do
+      if status=$(kubectl get node {{ inventory_hostname }} -o json 2>/dev/null | \
+        jq -r '.status.conditions[] | select(.type=="Ready") | .status' 2>/dev/null); then
+        if [ "$status" == "True" ]; then
+          echo "Node {{ inventory_hostname }} is now Ready!"
+          exit 0
+        else
+          echo "Node {{ inventory_hostname }} status: $status (waiting for Ready...)"
+        fi
+      else
+        echo "Node {{ inventory_hostname }} is not yet accessible (waiting for connectivity...)"
+      fi
+      sleep 5
+    done
+  when: node_status.stdout != "True"
+  tags: [resume, wait_ready]
+
+- name: Include cluster restoration
+  include_tasks: cluster_restoration.yml
+  tags: [resume, restore]

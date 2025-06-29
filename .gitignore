@@ -1,0 +1,83 @@
+# Ansible inventory with sensitive information
+hosts.yml
+inventory.yml
+hosts.ini
+inventory.ini
+
+# SSH keys and certificates
+*.pem
+*.key
+*.crt
+*.p12
+keys/
+ssh_keys/
+
+# Ansible vault files
+*.vault
+vault.yml
+
+# Role-specific sensitive files
+group_vars/*/secrets.yml
+group_vars/*/vault.yml
+host_vars/*/secrets.yml
+host_vars/*/vault.yml
+
+# Logs
+*.log
+logs/
+ansible.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Local configuration overrides
+local.yml
+local.config
+.env
+.env.local
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Ansible retry files
+*.retry
+
+# Python cache (for testing/CI)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.pytest_cache/
+
+# CI/CD artifacts
+.github/workflows/test-results/
+test-results/
+coverage/
+
+# Custom paths (uncomment if you use these)
+# ansible.cfg
+# group_vars/
+# host_vars/

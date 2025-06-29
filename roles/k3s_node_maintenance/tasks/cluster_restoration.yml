@@ -1,0 +1,48 @@
+---
+# Cluster restoration tasks - uncordoning and re-enabling Longhorn
+- name: Uncordon node
+  delegate_to: localhost
+  shell: |
+    kubectl uncordon {{ inventory_hostname }}
+  tags: [restore, uncordon, resume]
+
+- name: Check for Longhorn annotations on this node
+  delegate_to: localhost
+  shell: |
+    kubectl get node {{ inventory_hostname }} -o json | \
+    jq -r '.metadata.annotations["node.longhorn.io/default-node-tags"] // "none"'
+  register: longhorn_annotations
+  tags: [restore, longhorn, resume]
+
+- name: Re-enable Longhorn scheduling (if it was disabled)
+  delegate_to: localhost
+  shell: |
+    kubectl patch node {{ inventory_hostname }} --type='json' \
+      -p='[{"op": "remove", "path": "/metadata/annotations/node.longhorn.io~1default-node-tags"}]' || true
+    sleep 5
+  when: longhorn_annotations.stdout != "none"
+  tags: [restore, longhorn, resume]
+
+- name: Confirm node is schedulable (uncordoned)
+  delegate_to: localhost
+  shell: |
+    kubectl get node {{ inventory_hostname }} -o json | jq -r '.spec.unschedulable // "false"'
+  register: uncordon_check
+  tags: [restore, verify, resume]
+
+- name: Warn if node is still SchedulingDisabled after maintenance
+  debug:
+    msg: "WARNING: {{ inventory_hostname }} is still SchedulingDisabled after maintenance! (Manual check needed)"
+  when: uncordon_check.stdout == "true"
+  tags: [restore, verify, resume]
+
+- name: Show successful restoration
+  debug:
+    msg: "✅ Node {{ inventory_hostname }} successfully restored - SchedulingDisabled: {{ uncordon_check.stdout }}"
+  when: uncordon_check.stdout != "true"
+  tags: [restore, complete, resume]
+
+- name: Maintenance complete
+  debug:
+    msg: "Maintenance complete for {{ inventory_hostname }}"
+  tags: [restore, complete, resume]

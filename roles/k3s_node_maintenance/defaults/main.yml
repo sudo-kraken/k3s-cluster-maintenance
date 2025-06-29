@@ -1,0 +1,16 @@
+---
+# Default variables for K3s node maintenance role
+k3s_node_maintenance_wait_timeout: 600
+k3s_node_maintenance_drain_timeout: 300
+k3s_node_maintenance_drain_grace_period: 30
+k3s_node_maintenance_reboot_pause: 30
+k3s_node_maintenance_apt_cache_valid_time: 3600
+
+# Node type specific settings (overridden by group vars)
+k3s_node_maintenance_node_type: "worker"  # master or worker
+k3s_node_maintenance_critical_node: false
+
+# Maintenance behaviour settings
+k3s_node_maintenance_skip_if_no_updates: true
+k3s_node_maintenance_force_maintenance: false
+k3s_node_maintenance_longhorn_enabled: true

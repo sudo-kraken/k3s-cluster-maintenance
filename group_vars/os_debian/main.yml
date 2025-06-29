@@ -1,0 +1,13 @@
+---
+# Variables specific to Debian/Ubuntu systems
+k3s_node_maintenance_package_manager: "apt"
+k3s_node_maintenance_apt_cache_valid_time: 3600
+
+# Debian-specific package settings
+k3s_node_maintenance_debian_security_updates_only: false
+k3s_node_maintenance_debian_autoremove: true
+k3s_node_maintenance_debian_autoclean: true
+
+# Package update behaviour
+k3s_node_maintenance_update_cache_retries: 3
+k3s_node_maintenance_update_cache_delay: 10

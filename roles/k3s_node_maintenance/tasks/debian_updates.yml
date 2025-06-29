@@ -1,0 +1,65 @@
+---
+# Debian/Ubuntu package updates
+- name: Update package cache (apt)
+  become: true
+  apt:
+    update_cache: true
+    cache_valid_time: "{{ k3s_node_maintenance_apt_cache_valid_time }}"
+  tags: [packages, updates, debian, cache]
+
+- name: List upgradable packages (apt)
+  become: true
+  shell: |
+    apt list --upgradable 2>/dev/null | tail -n +2
+  register: apt_upgrade_list
+  changed_when: false
+  tags: [packages, updates, debian, list]
+
+- name: Parse list of upgradable package names (apt)
+  set_fact:
+    apt_packages_to_upgrade: >-
+      {{ apt_upgrade_list.stdout_lines | map('regex_replace', '/.*$', '') | list }}
+  when: apt_upgrade_list.stdout_lines | length > 0
+  tags: [packages, updates, debian, parse]
+
+- name: Show number and names of upgradable packages (apt)
+  debug:
+    msg: |
+      {{ apt_packages_to_upgrade | length }} package(s) can be updated:
+      {{ apt_packages_to_upgrade | join(', ') }}
+  when:
+    - apt_packages_to_upgrade is defined
+    - apt_packages_to_upgrade | length > 0
+  tags: [packages, updates, debian, info]
+
+- name: Apply all updates (apt)
+  become: true
+  apt:
+    upgrade: dist
+  register: apt_upgrade_result
+  when:
+    - apt_packages_to_upgrade is defined
+    - apt_packages_to_upgrade | length > 0
+  tags: [packages, updates, debian, upgrade]
+
+- name: Report packages actually upgraded (apt)
+  debug:
+    msg: |
+      {% if apt_upgrade_result is defined and apt_upgrade_result.changed %}
+      Packages upgraded on {{ inventory_hostname }}: {{ apt_packages_to_upgrade | join(', ') }}
+      {% else %}
+      No packages were upgraded on {{ inventory_hostname }}.
+      {% endif %}
+  tags: [packages, updates, debian, report]
+
+- name: Check if reboot is required (apt)
+  become: true
+  stat:
+    path: /var/run/reboot-required
+  register: apt_reboot_required
+  tags: [packages, updates, debian, reboot_check]
+
+- name: Show reboot requirement
+  debug:
+    msg: "Reboot required: {{ 'Yes' if apt_reboot_required.stat.exists else 'No' }}"
+  tags: [packages, updates, debian, reboot_check]

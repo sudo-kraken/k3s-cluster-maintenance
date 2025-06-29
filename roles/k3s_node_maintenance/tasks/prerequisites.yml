@@ -1,0 +1,35 @@
+---
+# Prerequisites and pre-flight checks
+- name: Gather OS family facts
+  setup:
+    gather_subset:
+      - 'os_family'
+  tags: [always, prerequisites, setup]
+
+- name: Check required binaries on localhost
+  delegate_to: localhost
+  shell: |
+    for cmd in kubectl jq; do
+      command -v $cmd >/dev/null || exit 1
+    done
+    echo "✅ All required tools available on localhost"
+  register: localhost_prereq_check
+  failed_when: localhost_prereq_check.rc != 0
+  tags: [prerequisites, check_tools]
+
+- name: Check required binaries on target node
+  become: true
+  shell: |
+    os_family="{{ ansible_facts['os_family'] }}"
+    if [ "$os_family" = "RedHat" ]; then
+      for cmd in dnf; do command -v $cmd >/dev/null || exit 1; done
+      if ! command -v needs-restarting >/dev/null 2>&1; then
+        echo "⚠️  needs-restarting not available, will use fallback reboot detection"
+      fi
+    elif [ "$os_family" = "Debian" ]; then
+      for cmd in apt-get; do command -v $cmd >/dev/null || exit 1; done
+    fi
+    echo "✅ All required tools available on target node ($os_family)"
+  register: target_prereq_check
+  failed_when: target_prereq_check.rc != 0
+  tags: [prerequisites, check_tools]

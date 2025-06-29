@@ -1,0 +1,27 @@
+---
+# Handlers for K3s node maintenance role
+
+# Service restart handlers with proper node type detection
+- name: restart k3s master service
+  become: true
+  systemd:
+    name: k3s
+    state: restarted
+    enabled: true
+  when: "'k3s_masters' in group_names"
+  listen: "restart k3s service"
+
+- name: restart k3s worker service
+  become: true
+  systemd:
+    name: k3s-node
+    state: restarted
+    enabled: true
+  when: "'k3s_workers' in group_names"
+  listen: "restart k3s service"
+
+# Reload systemd daemon if needed
+- name: reload systemd daemon
+  become: true
+  systemd:
+    daemon_reload: true

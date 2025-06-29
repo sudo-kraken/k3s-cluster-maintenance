@@ -1,0 +1,56 @@
+all:
+  vars:
+    # SSH connection settings
+    ansible_ssh_user: your-ssh-user
+    ansible_ssh_private_key_file: /path/to/your/ssh/private/key
+    
+    # Optional: SSH connection options
+    # ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    # ansible_python_interpreter: /usr/bin/python3
+
+# K3s cluster node groups
+k3s_masters:
+  hosts:
+    master-01:
+      ansible_host: 10.0.0.100
+    master-02:
+      ansible_host: 10.0.0.101
+    master-03:
+      ansible_host: 10.0.0.102
+
+k3s_workers:
+  hosts:
+    worker-01:
+      ansible_host: 10.0.0.150
+    worker-02:
+      ansible_host: 10.0.0.151
+    worker-03:
+      ansible_host: 10.0.0.152
+    worker-04:
+      ansible_host: 10.0.0.153
+    worker-05:
+      ansible_host: 10.0.0.154
+    worker-06:
+      ansible_host: 10.0.0.155
+
+# Operating system groups for OS-specific variables
+os_debian:
+  hosts:
+    master-01:
+    master-02:
+    worker-01:
+    worker-02:
+    worker-03:
+
+os_redhat:
+  hosts:
+    master-03:
+    worker-04:
+    worker-05:
+    worker-06:
+
+# Convenience groups
+k3s_cluster:
+  children:
+    k3s_masters:
+    k3s_workers:

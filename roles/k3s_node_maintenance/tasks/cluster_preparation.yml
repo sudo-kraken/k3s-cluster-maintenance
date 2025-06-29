@@ -1,0 +1,67 @@
+---
+# Cluster preparation tasks - Longhorn, cordoning, and draining
+- name: Check for Longhorn pods on this node
+  delegate_to: localhost
+  shell: |
+    kubectl get pods --all-namespaces \
+      --field-selector spec.nodeName={{ inventory_hostname }} -o json | \
+    jq -r '.items[] | select(.metadata.namespace == "longhorn-system") | .metadata.name' || echo "none"
+  register: longhorn_pods
+  tags: [cluster, prepare, longhorn]
+
+- name: Disable Longhorn node scheduling (if Longhorn pods present)
+  delegate_to: localhost
+  shell: |
+    kubectl patch node {{ inventory_hostname }} --type='json' \
+      -p='[{"op": "add", "path": "/metadata/annotations/node.longhorn.io~1default-node-tags", "value": "[\"disable-scheduling\"]"}]' || true
+    sleep 10
+  when: longhorn_pods.stdout_lines | length > 0
+  tags: [cluster, prepare, longhorn]
+
+- name: Cordon node first (safer approach)
+  delegate_to: localhost
+  shell: |
+    kubectl cordon {{ inventory_hostname }}
+  tags: [cluster, prepare, cordon]
+
+- name: Drain node from cluster
+  delegate_to: localhost
+  block:
+    - name: Drain with eviction (primary method)
+      shell: |
+        kubectl drain {{ inventory_hostname }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --force \
+          --grace-period={{ k3s_node_maintenance_drain_grace_period }} \
+          --timeout={{ k3s_node_maintenance_drain_timeout }}s \
+          --disable-eviction
+      register: drain_primary
+      tags: [cluster, prepare, drain]
+
+  rescue:
+    - name: Fallback - Force drain without eviction
+      shell: |
+        echo "Primary drain failed, attempting force drain..."
+        kubectl drain {{ inventory_hostname }} \
+          --ignore-daemonsets \
+          --delete-emptydir-data \
+          --force \
+          --grace-period=0 \
+          --timeout=60s \
+          --disable-eviction
+      register: drain_fallback
+      tags: [cluster, prepare, drain, fallback]
+
+  always:
+    - name: Show drain result
+      debug:
+        msg: |
+          {% if drain_primary is succeeded %}
+          Primary drain completed successfully
+          {% elif drain_fallback is defined %}
+          Fallback drain completed: {{ drain_fallback.stdout if drain_fallback.stdout else 'No output' }}
+          {% else %}
+          Drain operation encountered issues
+          {% endif %}
+      tags: [cluster, prepare, drain]

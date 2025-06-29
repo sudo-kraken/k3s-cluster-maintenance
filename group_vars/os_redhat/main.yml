@@ -1,0 +1,15 @@
+---
+# Variables specific to RedHat/CentOS systems
+k3s_node_maintenance_package_manager: "dnf"
+
+# RedHat-specific package settings
+k3s_node_maintenance_redhat_security_updates_only: false
+k3s_node_maintenance_redhat_skip_broken: false
+
+# DNF configuration
+k3s_node_maintenance_dnf_automatic_enabled: false
+k3s_node_maintenance_dnf_keep_cache: false
+
+# Package update behaviour
+k3s_node_maintenance_update_cache_retries: 3
+k3s_node_maintenance_update_cache_delay: 10
