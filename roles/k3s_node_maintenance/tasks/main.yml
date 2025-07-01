@@ -25,6 +25,8 @@
   tags: [restore]
 
 # Resume task for manual recovery after reboot issues
+# Only runs when explicitly called with --tags resume
 - name: Resume after reboot (manual recovery)
   include_tasks: resume_after_reboot.yml
   tags: [resume]
+  when: "'resume' in ansible_run_tags"
