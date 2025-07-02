@@ -1,67 +1,112 @@
 ---
 # Cluster preparation tasks - Longhorn, cordoning, and draining
-- name: Check for Longhorn pods on this node
+- name: Check for Longhorn on this node
   delegate_to: localhost
-  shell: |
-    kubectl get pods --all-namespaces \
-      --field-selector spec.nodeName={{ inventory_hostname }} -o json | \
-    jq -r '.items[] | select(.metadata.namespace == "longhorn-system") | .metadata.name' || echo "none"
-  register: longhorn_pods
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    field_selectors:
+      - spec.nodeName={{ inventory_hostname }}
+    namespace: longhorn-system
+  register: longhorn_pods_info
   tags: [cluster, prepare, longhorn]
 
-- name: Disable Longhorn node scheduling (if Longhorn pods present)
-  delegate_to: localhost
-  shell: |
-    kubectl patch node {{ inventory_hostname }} --type='json' \
-      -p='[{"op": "add", "path": "/metadata/annotations/node.longhorn.io~1default-node-tags", "value": "[\"disable-scheduling\"]"}]' || true
-    sleep 10
-  when: longhorn_pods.stdout_lines | length > 0
-  tags: [cluster, prepare, longhorn]
-
-- name: Cordon node first (safer approach)
-  delegate_to: localhost
-  shell: |
-    kubectl cordon {{ inventory_hostname }}
-  tags: [cluster, prepare, cordon]
-
-- name: Drain node from cluster
+- name: Disable Longhorn scheduling (if present)
   delegate_to: localhost
   block:
-    - name: Drain with eviction (primary method)
-      shell: |
-        kubectl drain {{ inventory_hostname }} \
-          --ignore-daemonsets \
-          --delete-emptydir-data \
-          --force \
-          --grace-period={{ k3s_node_maintenance_drain_grace_period }} \
-          --timeout={{ k3s_node_maintenance_drain_timeout }}s \
-          --disable-eviction
-      register: drain_primary
-      tags: [cluster, prepare, drain]
+    - name: Check Longhorn Node CR
+      kubernetes.core.k8s_info:
+        api_version: longhorn.io/v1beta2
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        namespace: longhorn-system
+      register: longhorn_node_check
 
-  rescue:
-    - name: Fallback - Force drain without eviction
-      shell: |
-        echo "Primary drain failed, attempting force drain..."
-        kubectl drain {{ inventory_hostname }} \
-          --ignore-daemonsets \
-          --delete-emptydir-data \
-          --force \
-          --grace-period=0 \
-          --timeout=60s \
-          --disable-eviction
-      register: drain_fallback
-      tags: [cluster, prepare, drain, fallback]
+    - name: Disable scheduling
+      kubernetes.core.k8s:
+        api_version: longhorn.io/v1beta2
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        namespace: longhorn-system
+        state: present
+        merge_type: merge
+        definition:
+          spec:
+            allowScheduling: false
+      when: longhorn_node_check.resources | length > 0
 
-  always:
-    - name: Show drain result
+    - name: Wait for Longhorn to disable scheduling
+      pause:
+        seconds: 15
+      when: longhorn_node_check.resources | length > 0
+
+  when: (longhorn_pods_info.resources | length) > 0
+  tags: [cluster, prepare, longhorn]
+
+- name: Prepare node for maintenance
+  delegate_to: localhost
+  block:
+    - name: Cordon node
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        state: present
+        merge_type: strategic-merge
+        definition:
+          spec:
+            unschedulable: true
+
+    - name: Get pods to drain
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        field_selectors:
+          - spec.nodeName={{ inventory_hostname }}
+      register: node_pods
+
+    - name: Filter drainable pods
+      set_fact:
+        pods_to_drain: |
+          {%- set filtered_pods = [] -%}
+          {%- for pod in node_pods.resources -%}
+            {%- set is_daemonset = false -%}
+            {%- if pod.metadata.ownerReferences is defined -%}
+              {%- for owner in pod.metadata.ownerReferences -%}
+                {%- if owner.kind == "DaemonSet" -%}
+                  {%- set is_daemonset = true -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+            {%- if not is_daemonset and pod.metadata.namespace != "kube-system" -%}
+              {%- set _ = filtered_pods.append(pod) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ filtered_pods }}
+
+    - name: Node drain status
       debug:
-        msg: |
-          {% if drain_primary is succeeded %}
-          Primary drain completed successfully
-          {% elif drain_fallback is defined %}
-          Fallback drain completed: {{ drain_fallback.stdout if drain_fallback.stdout else 'No output' }}
-          {% else %}
-          Drain operation encountered issues
-          {% endif %}
-      tags: [cluster, prepare, drain]
+        msg: "🔄 Draining {{ pods_to_drain | length }} pods from {{ inventory_hostname }}"
+      when: pods_to_drain | length > 0
+
+    - name: Drain pods from node
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Pod
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ item.metadata.namespace }}"
+        state: absent
+        wait: true
+        wait_timeout: 60
+        delete_options:
+          gracePeriodSeconds: 30
+      loop: "{{ pods_to_drain }}"
+      loop_control:
+        label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+      register: drain_result
+      failed_when: false
+
+    - name: Drain completed
+      debug:
+        msg: "✅ Node drain completed - ready for maintenance"
+  tags: [cluster, prepare, drain]

@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-07-02
+
+### 🚀 Major Refactor: Native Kubernetes Modules
+
+**BREAKING CHANGE**: Refactored from shell commands to proper Ansible Kubernetes modules for better reliability, error handling, and maintainability.
+
+### ✨ Added
+- **Native Kubernetes Operations** - Complete migration to `kubernetes.core` collection
+- **Custom Drain Logic** - Native pod deletion with DaemonSet filtering instead of kubectl drain
+- **Cross-Platform Compatibility** - No longer requires shell-specific tools
+- **Collections Requirements** - Added `collections/requirements.yml` for dependency management
+- **Installation Script** - Automated collection installation with `install-collections.sh`
+- **Longhorn Volume Health Checks** - Added validation for degraded and faulted volumes before maintenance
+- **Longhorn Volume Recovery** - Automatic wait and recovery mechanism for degraded volumes
+- **Storage Safety Features** - Pre-maintenance validation prevents unsafe operations on unhealthy storage
+
+### 🔧 Changed
+- **Prerequisites** - Now requires `kubernetes.core` collection and Python Kubernetes client
+- **Node Operations** - All Kubernetes operations now use native modules instead of shell commands
+- **Readiness Checks** - Node Ready status monitoring uses `k8s_info` with wait conditions
+- **Drain Operations** - Custom drain logic using native pod deletion instead of kubectl drain
+- **Output Display** - Cleaner, more concise progress messages throughout maintenance workflow
+
+### 🐛 Fixed
+- **Resume Functionality** - Resume task now only runs when explicitly called with `--tags resume`
+- **Shell Dependencies** - Eliminated dependency on bash-specific commands and JSON parsing tools
+- **Platform Limitations** - Better Windows and cross-platform support
+- **Error Display** - Fixed drain operations showing red errors for normal timeout conditions
+- **Terminal Compatibility** - Improved display across different terminal environments
+- **Variable References** - Fixed undefined variable issues in pod filtering logic
+- **Longhorn Volume Safety** - Prevents maintenance on nodes with degraded storage volumes
+
 ## [1.0.0] - 2025-06-29
 
 ### Initial Release

@@ -2,8 +2,7 @@
 # Check for available package updates and determine if maintenance is needed
 - name: Check for available package updates (apt)
   become: true
-  shell: |
-    apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+  shell: apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
   register: apt_updates_available
   when: ansible_facts['os_family'] == 'Debian'
   changed_when: false
@@ -24,31 +23,24 @@
         (ansible_facts['os_family'] == 'Debian' and (apt_updates_available.stdout | int) > 0) or
         (ansible_facts['os_family'] == 'RedHat' and (dnf_updates_available.results | length) > 0)
       }}
+    update_count: >-
+      {{
+        (apt_updates_available.stdout | int) if ansible_facts['os_family'] == 'Debian'
+        else (dnf_updates_available.results | length)
+      }}
   tags: [packages, check_updates]
 
-- name: Show update availability status
+- name: Package update status
   debug:
     msg: |
-      {% if ansible_facts['os_family'] == 'Debian' %}
-      Debian/Ubuntu system: {{ apt_updates_available.stdout | int }} packages available for upgrade
-      {% elif ansible_facts['os_family'] == 'RedHat' %}
-      RHEL/CentOS system: {{ dnf_updates_available.results | length }} packages available for upgrade
+      {% if packages_need_update -%}
+      📦 {{ update_count }} package updates available - proceeding with maintenance
+      {% else -%}
+      ✅ No updates available - skipping maintenance
       {% endif %}
-      Maintenance needed: {{ packages_need_update }}
-  tags: [packages, check_updates]
-
-- name: No updates available, skipping maintenance
-  debug:
-    msg: "✅ No updates available, skipping maintenance for {{ inventory_hostname }}"
-  when: not packages_need_update
   tags: [packages, check_updates]
 
 - name: End play if no updates needed
   meta: end_play
   when: not packages_need_update
-  tags: [packages, check_updates]
-
-- name: Maintenance proceeding - packages available for update
-  debug:
-    msg: "✅ Package updates available, proceeding with maintenance operations"
   tags: [packages, check_updates]

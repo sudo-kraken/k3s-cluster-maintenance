@@ -1,23 +1,13 @@
 ---
 # RedHat/CentOS package updates
-- name: Parse list of upgradable package names (dnf)
+- name: Parse package list
   set_fact:
     dnf_packages_to_upgrade: >-
       {{ dnf_updates_available.results | map(attribute='name') | list }}
   when: dnf_updates_available.results | length > 0
   tags: [packages, updates, redhat, parse]
 
-- name: Show pending DNF packages
-  debug:
-    msg: |
-      {{ dnf_packages_to_upgrade | length }} package(s) can be updated:
-      {{ dnf_packages_to_upgrade | join(', ') }}
-  when:
-    - dnf_packages_to_upgrade is defined
-    - dnf_packages_to_upgrade | length > 0
-  tags: [packages, updates, redhat, info]
-
-- name: Update system packages (dnf)
+- name: "⚡ Upgrading {{ dnf_packages_to_upgrade | length }} packages"
   become: true
   ansible.builtin.dnf:
     name: "*"
@@ -29,17 +19,7 @@
     - dnf_packages_to_upgrade | length > 0
   tags: [packages, updates, redhat, upgrade]
 
-- name: Show package upgrade summary (dnf)
-  debug:
-    msg: |
-      {% if dnf_upgrade_result is defined and dnf_upgrade_result.changed %}
-      Packages upgraded on {{ inventory_hostname }}: {{ dnf_packages_to_upgrade | join(', ') }}
-      {% else %}
-      No packages upgraded on {{ inventory_hostname }}
-      {% endif %}
-  tags: [packages, updates, redhat, report]
-
-- name: Check if reboot required (dnf)
+- name: Check reboot requirement
   become: true
   shell: |
     if command -v needs-restarting >/dev/null 2>&1; then
@@ -59,9 +39,6 @@
     fi
   register: dnf_reboot_required
   changed_when: false
-  tags: [packages, updates, redhat, reboot_check]
-
-- name: Show reboot requirement
-  debug:
-    msg: "Reboot required: {{ dnf_reboot_required.stdout }}"
+  check_mode: no
+  when: ansible_facts['os_family'] == 'RedHat'
   tags: [packages, updates, redhat, reboot_check]

@@ -1,0 +1,143 @@
+---
+# Longhorn health validation tasks
+- name: Check if Longhorn is installed in cluster
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: longhorn-system
+  register: longhorn_namespace
+  tags: [longhorn, health, validation]
+
+- name: Set Longhorn installed fact
+  set_fact:
+    longhorn_installed: "{{ longhorn_namespace.resources | length > 0 }}"
+  tags: [longhorn, health, validation]
+
+- name: Get Longhorn manager pods status (if Longhorn installed)
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: longhorn-system
+    label_selectors:
+      - app=longhorn-manager
+  register: longhorn_managers
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Get Longhorn instance manager pods status (if Longhorn installed)
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: longhorn-system
+    label_selectors:
+      - longhorn.io/component=instance-manager
+  register: longhorn_instance_managers
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Get Longhorn volumes status (if Longhorn installed)
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: longhorn.io/v1beta2
+    kind: Volume
+    namespace: longhorn-system
+  register: longhorn_volumes
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Set Longhorn health facts
+  set_fact:
+    running_managers: "{{ longhorn_managers.resources | selectattr('status.phase', 'equalto', 'Running') | list | length }}"
+    total_managers: "{{ longhorn_managers.resources | length }}"
+    running_instance_managers: "{{ longhorn_instance_managers.resources | selectattr('status.phase', 'equalto', 'Running') | list | length }}"
+    total_instance_managers: "{{ longhorn_instance_managers.resources | length }}"
+    attached_volumes: "{{ longhorn_volumes.resources | selectattr('status.state', 'defined') | selectattr('status.state', 'equalto', 'attached') | list | length }}"
+    total_volumes_with_state: "{{ longhorn_volumes.resources | selectattr('status.state', 'defined') | list | length }}"
+    degraded_volumes: "{{ longhorn_volumes.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'degraded') | list | length }}"
+    faulted_volumes: "{{ longhorn_volumes.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'faulted') | list | length }}"
+    degraded_volume_list: "{{ longhorn_volumes.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'degraded') | map(attribute='metadata.name') | list }}"
+    faulted_volume_list: "{{ longhorn_volumes.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'faulted') | map(attribute='metadata.name') | list }}"
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Longhorn volume health validation
+  debug:
+    msg: |
+      Longhorn Volume Health Check:
+      {% if (degraded_volumes | int > 0) or (faulted_volumes | int > 0) -%}
+      ⚠️ Degraded: {{ degraded_volumes }}, Faulted: {{ faulted_volumes }} - waiting for recovery...
+      {% else -%}
+      ✅ All {{ longhorn_volumes.resources | length }} volumes healthy
+      {% endif %}
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Wait for degraded and faulted volumes to recover
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: longhorn.io/v1beta2
+    kind: Volume
+    namespace: longhorn-system
+  register: volume_recovery_result
+  until: >
+    (volume_recovery_result.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'degraded') | list | length | int == 0) and
+    (volume_recovery_result.resources | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'faulted') | list | length | int == 0)
+  retries: 60
+  delay: 30
+  when: 
+    - longhorn_installed 
+    - (degraded_volumes | int > 0) or (faulted_volumes | int > 0)
+  failed_when: false
+  tags: [longhorn, health, validation, wait]
+
+- name: Show volume recovery progress
+  debug:
+    msg: "⏳ Volume recovery progress: {{ volume_recovery_result.attempts | default(1) }}/60 checks completed"
+  when: 
+    - longhorn_installed 
+    - volume_recovery_result is defined
+    - volume_recovery_result.attempts is defined
+    - (volume_recovery_result.attempts - 1) is divisibleby(5)  # Every 5th check
+  tags: [longhorn, health, validation, wait]
+
+- name: Update final volume health status
+  set_fact:
+    final_degraded_count: "{{ volume_recovery_result.resources | default(longhorn_volumes.resources) | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'degraded') | list | length }}"
+    final_faulted_count: "{{ volume_recovery_result.resources | default(longhorn_volumes.resources) | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'faulted') | list | length }}"
+    final_degraded_list: "{{ volume_recovery_result.resources | default(longhorn_volumes.resources) | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'degraded') | map(attribute='metadata.name') | list }}"
+    final_faulted_list: "{{ volume_recovery_result.resources | default(longhorn_volumes.resources) | selectattr('status.robustness', 'defined') | selectattr('status.robustness', 'equalto', 'faulted') | map(attribute='metadata.name') | list }}"
+  when: longhorn_installed
+  tags: [longhorn, health, validation]
+
+- name: Validate volumes are healthy before proceeding
+  delegate_to: localhost
+  fail:
+    msg: |
+      CRITICAL: Cannot proceed - Longhorn volumes remain unhealthy after 30-minute wait!
+      - Degraded volumes: {{ final_degraded_count }} ({{ final_degraded_list | join(', ') if final_degraded_list | length > 0 else 'none' }})
+      - Faulted volumes: {{ final_faulted_count }} ({{ final_faulted_list | join(', ') if final_faulted_list | length > 0 else 'none' }})
+      
+      Manual intervention required. Check volume status with:
+      kubectl get volumes -n longhorn-system -o wide
+  when: 
+    - longhorn_installed 
+    - (final_degraded_count | int > 0) or (final_faulted_count | int > 0)
+  tags: [longhorn, health, validation]
+
+- name: Final Longhorn system validation
+  delegate_to: localhost
+  assert:
+    that:
+      - running_managers | int == total_managers | int
+      - running_instance_managers | int == total_instance_managers | int
+      - final_degraded_count | int == 0
+      - final_faulted_count | int == 0
+    fail_msg: "Longhorn system validation failed - degraded: {{ final_degraded_count }}, faulted: {{ final_faulted_count }}"
+    success_msg: "✅ Longhorn system healthy - {{ total_volumes_with_state }} volumes present, all components ready"
+  when: longhorn_installed and (total_managers | int > 0)
+  tags: [longhorn, health, validation]
+
+

@@ -1,6 +1,6 @@
 ---
 # Reboot handling and waiting for node readiness
-- name: Reboot the server and wait for return
+- name: "🔄 Rebooting {{ inventory_hostname }}"
   become: true
   reboot:
     reboot_timeout: "{{ k3s_node_maintenance_wait_timeout }}"
@@ -9,34 +9,23 @@
   when: reboot_required
   tags: [reboot, reboot_server]
 
-- name: Wait briefly for K3s services to stabilize
+- name: Stabilisation wait
   delegate_to: localhost
   pause:
     seconds: 30
   when: reboot_required
   tags: [reboot, reboot_wait]
 
-- name: Wait for node to return to Ready in Kubernetes
+- name: "✅ Node ready check"
   delegate_to: localhost
-  shell: |
-    set -o pipefail
-    echo "Waiting for node {{ inventory_hostname }} to become Ready in Kubernetes..."
-    
-    # Keep checking until the node is Ready
-    while true; do
-      if status=$(kubectl get node {{ inventory_hostname }} -o json 2>/dev/null | \
-        jq -r '.status.conditions[] | select(.type=="Ready") | .status' 2>/dev/null); then
-        if [ "$status" == "True" ]; then
-          echo "Node {{ inventory_hostname }} is now Ready in Kubernetes!"
-          exit 0
-        else
-          echo "Node {{ inventory_hostname }} Kubernetes status: $status (waiting for Ready...)"
-        fi
-      else
-        echo "Node {{ inventory_hostname }} not yet visible in Kubernetes (waiting...)"
-      fi
-      sleep 5
-    done
-  register: ready_check
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    name: "{{ inventory_hostname }}"
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: "{{ k3s_node_maintenance_wait_timeout }}"
   when: reboot_required
   tags: [reboot, reboot_ready, restore]
