@@ -6,30 +6,38 @@
       - 'os_family'
   tags: [always, prerequisites, setup]
 
-- name: Check required binaries on localhost
+- name: Validate maintenance prerequisites
   delegate_to: localhost
-  shell: |
-    for cmd in kubectl jq; do
-      command -v $cmd >/dev/null || exit 1
-    done
-    echo "✅ All required tools available on localhost"
-  register: localhost_prereq_check
-  failed_when: localhost_prereq_check.rc != 0
-  tags: [prerequisites, check_tools]
+  ansible.builtin.shell: |
+    # Check kubernetes.core collection
+    if ! ansible-galaxy collection list | grep -q kubernetes.core; then
+      echo "❌ Missing kubernetes.core collection"
+      exit 1
+    fi
+    
+    # Check kubectl
+    if ! command -v kubectl >/dev/null; then
+      echo "❌ kubectl not found on localhost"
+      exit 1
+    fi
+    
+    echo "✅ Prerequisites validated"
+  register: prereq_check
+  failed_when: prereq_check.rc != 0
+  tags: [prerequisites]
 
-- name: Check required binaries on target node
+- name: Check target node tools
   become: true
   shell: |
     os_family="{{ ansible_facts['os_family'] }}"
-    if [ "$os_family" = "RedHat" ]; then
-      for cmd in dnf; do command -v $cmd >/dev/null || exit 1; done
-      if ! command -v needs-restarting >/dev/null 2>&1; then
-        echo "⚠️  needs-restarting not available, will use fallback reboot detection"
-      fi
-    elif [ "$os_family" = "Debian" ]; then
-      for cmd in apt-get; do command -v $cmd >/dev/null || exit 1; done
+    if [ "$os_family" = "RedHat" ] && ! command -v dnf >/dev/null; then
+      echo "❌ dnf not available"
+      exit 1
+    elif [ "$os_family" = "Debian" ] && ! command -v apt-get >/dev/null; then
+      echo "❌ apt-get not available"
+      exit 1
     fi
-    echo "✅ All required tools available on target node ($os_family)"
-  register: target_prereq_check
-  failed_when: target_prereq_check.rc != 0
-  tags: [prerequisites, check_tools]
+    echo "✅ Tools available ($os_family)"
+  register: tools_check
+  failed_when: tools_check.rc != 0
+  tags: [prerequisites]

@@ -64,6 +64,7 @@ group_vars/
 - **⚡ Zero-Downtime Operations**: Sequential node processing preserves cluster availability
 - **🔍 Intelligent Detection**: Automatically skips maintenance when no updates are available
 - **🛡️ Health Monitoring**: Comprehensive cluster and storage validation
+- **🔄 Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
 - **🎛️ Control Plane Safety**: Master node handling with quorum protection
 - **💾 Storage Integration**: Native Longhorn support with volume health verification
 - **🔄 Reboot Management**: Smart reboot handling that adapts to node boot speeds
@@ -83,10 +84,11 @@ group_vars/
 ## 📋 Prerequisites
 
 - **K3s cluster** (single or multi-node)
-- **Ansible** (>= 2.9)
+- **Ansible** (>= 2.9, tested with 2.14.x)
 - **kubectl** configured for your cluster
 - **SSH access** to all nodes with key-based authentication
-- **jq** for JSON parsing
+- **kubernetes.core collection** for native Kubernetes operations
+- **Python Kubernetes client** for API operations
 
 ### Optional Components
 - **Longhorn** storage system (health checks included)
@@ -104,13 +106,25 @@ cd k3s-cluster-maintenance
 pip install -r requirements.txt
 ```
 
-### 3. Configure Inventory
+### 3. Install Ansible Collections
+```bash
+# Install required Kubernetes collection
+ansible-galaxy collection install kubernetes.core
+
+# Or install all collections from requirements
+ansible-galaxy collection install -r collections/requirements.yml
+```
+
+**Required Collections:**
+- `kubernetes.core` (>= 2.4.0) - For native Kubernetes API operations
+
+### 4. Configure Inventory
 ```bash
 cp hosts.yml.example hosts.yml
 # Edit hosts.yml with your cluster details
 ```
 
-### 4. Test Connectivity
+### 5. Test Connectivity
 ```bash
 ansible all -i hosts.yml -m ping
 ```
@@ -272,6 +286,7 @@ all:
 - **Node Readiness**: Ensures nodes are healthy before/after maintenance
 - **Control Plane**: Validates API server and etcd health for masters
 - **Storage Integration**: Checks Longhorn volume health (when available)
+- **Volume Recovery**: Waits for degraded Longhorn volumes to recover before proceeding
 
 ### Operational Safety
 - **Sequential Processing**: Maintains only one node at a time

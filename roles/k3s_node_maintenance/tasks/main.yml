@@ -4,9 +4,25 @@
   include_tasks: prerequisites.yml
   tags: [always, prerequisites]
 
+- name: Cluster stability check
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 120
+  tags: [always, stability]
+
 - name: Include package update checks
   include_tasks: package_checks.yml
   tags: [packages, check_updates]
+
+- name: Include Longhorn health validation (pre-maintenance)
+  include_tasks: longhorn_validation.yml
+  tags: [longhorn, health, pre_check]
 
 - name: Include cluster preparation
   include_tasks: cluster_preparation.yml
@@ -23,6 +39,14 @@
 - name: Include cluster restoration
   include_tasks: cluster_restoration.yml
   tags: [restore]
+
+- name: Include Longhorn health validation (post-maintenance)
+  include_tasks: longhorn_validation.yml
+  tags: [longhorn, health, post_check]
+
+- name: Include final cluster validation
+  include_tasks: final_validation.yml
+  tags: [validation, final]
 
 # Resume task for manual recovery after reboot issues
 # Only runs when explicitly called with --tags resume

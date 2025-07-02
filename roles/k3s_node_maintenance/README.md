@@ -43,12 +43,14 @@ The role is organised into logical task files:
 - `tasks/main.yml`: Main orchestration
 - `tasks/prerequisites.yml`: Pre-flight checks
 - `tasks/package_checks.yml`: Update detection and early exit
+- `tasks/longhorn_validation.yml`: Longhorn storage health checks and volume recovery
 - `tasks/cluster_preparation.yml`: Node cordoning and draining
 - `tasks/package_updates.yml`: OS-specific update inclusion
 - `tasks/debian_updates.yml`: Debian/Ubuntu package updates
 - `tasks/redhat_updates.yml`: RHEL/CentOS package updates
 - `tasks/reboot_handling.yml`: Smart reboot coordination with adaptive monitoring
 - `tasks/cluster_restoration.yml`: Node restoration
+- `tasks/final_validation.yml`: Post-maintenance cluster health validation
 - `tasks/resume_after_reboot.yml`: Manual recovery after reboot issues
 
 ## Tags
@@ -68,7 +70,10 @@ All tasks are tagged for granular control:
 - `prepare`: Cluster preparation (cordon/drain)
 - `updates`: Package installation only
 - `uncordon`: Node uncordoning only
-- `longhorn`: Longhorn-specific operations
+- `longhorn`: Longhorn-specific operations (health checks, volume recovery)
+- `health`: Health validation and storage checks
+- `validation`: Pre/post maintenance validation
+- `wait`: Volume recovery waiting operations
 
 ### OS-Specific Tags
 - `debian`: Debian/Ubuntu operations only

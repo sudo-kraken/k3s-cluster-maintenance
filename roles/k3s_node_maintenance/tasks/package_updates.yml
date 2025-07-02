@@ -1,5 +1,10 @@
 ---
 # Package update tasks for both Debian and RedHat families
+- name: "📦 Applying package updates"
+  debug:
+    msg: "Processing {{ ansible_facts['os_family'] }} package updates"
+  tags: [packages, updates]
+
 - name: Include Debian package updates
   include_tasks: debian_updates.yml
   when: ansible_facts['os_family'] == 'Debian'
@@ -17,11 +22,14 @@
         (ansible_facts['os_family'] == 'Debian'
           and apt_upgrade_result is defined
           and apt_upgrade_result.changed
+          and apt_reboot_required.stat is defined
           and apt_reboot_required.stat.exists)
         or
         (ansible_facts['os_family'] == 'RedHat'
           and dnf_upgrade_result is defined
           and dnf_upgrade_result.changed
+          and dnf_reboot_required is defined
+          and dnf_reboot_required.stdout is defined
           and dnf_reboot_required.stdout == 'Yes')
       }}
   tags: [packages, updates, reboot_check]
