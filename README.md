@@ -5,7 +5,7 @@
 
 **Enterprise-grade automated OS patching and system maintenance for K3s cluster nodes** with zero-downtime operations. This tool safely applies operating system updates, security patches, and package upgrades to your K3s nodes using a modular Ansible role architecture.
 
-## 🎯 Quick Start
+## Quick Start
 
 Run maintenance operations with simple commands:
 
@@ -23,7 +23,7 @@ ansible-playbook -i hosts.yml maintenance.yml --limit node-01
 ansible-playbook -i hosts.yml maintenance.yml
 ```
 
-## 🏗️ Enterprise Architecture
+## Enterprise Architecture
 
 This tool uses a modular Ansible role-based architecture for production deployments:
 
@@ -58,19 +58,19 @@ group_vars/
   └── os_redhat/main.yml        # RHEL/CentOS settings
 ```
 
-## 🚀 Features
+## Features
 
-- **🔄 Automated OS Patching**: System updates, security patches, and package upgrades
-- **⚡ Zero-Downtime Operations**: Sequential node processing preserves cluster availability
-- **🔍 Intelligent Detection**: Automatically skips maintenance when no updates are available
-- **🛡️ Health Monitoring**: Comprehensive cluster and storage validation
-- **🔄 Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
-- **🎛️ Control Plane Safety**: Master node handling with quorum protection
-- **💾 Storage Integration**: Native Longhorn support with volume health verification
-- **🔄 Reboot Management**: Smart reboot handling that adapts to node boot speeds
-- **🏗️ Enterprise Ready**: Modular role architecture for scalability and customisation
+- ** Automated OS Patching**: System updates, security patches, and package upgrades
+- ** Zero-Downtime Operations**: Sequential node processing preserves cluster availability
+- ** Intelligent Detection**: Automatically skips maintenance when no updates are available
+- ** Health Monitoring**: Comprehensive cluster and storage validation
+- ** Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
+- ** Control Plane Safety**: Master node handling with quorum protection
+- ** Storage Integration**: Native Longhorn support with volume health verification
+- ** Reboot Management**: Smart reboot handling that adapts to node boot speeds
+- ** Enterprise Ready**: Modular role architecture for scalability and customisation
 
-## 📦 Repository Contents
+## Repository Contents
 
 | File | Description |
 |------|-------------|
@@ -81,7 +81,7 @@ group_vars/
 | `group_vars/` | Node type and OS-specific variables |
 | `requirements.txt` | Python dependencies |
 
-## 📋 Prerequisites
+## Prerequisites
 
 - **K3s cluster** (single or multi-node)
 - **Ansible** (>= 2.9, tested with 2.14.x)
@@ -93,7 +93,7 @@ group_vars/
 ### Optional Components
 - **Longhorn** storage system (health checks included)
 
-## 🛠️ Installation
+## Installation
 
 ### 1. Clone Repository
 ```bash
@@ -129,7 +129,7 @@ cp hosts.yml.example hosts.yml
 ansible all -i hosts.yml -m ping
 ```
 
-## 📚 Usage Examples
+## Usage Examples
 
 ### Basic Maintenance Operations
 ```bash
@@ -209,7 +209,7 @@ ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags uncordon
 ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags longhorn
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Role Variables
 
@@ -274,7 +274,7 @@ all:
             worker-02:
 ```
 
-## 🛡️ Safety Features
+## Safety Features
 
 ### Intelligent Detection
 - **Early Exit**: Automatically skips maintenance when no updates are available
@@ -294,7 +294,7 @@ all:
 - **Smart Reboot Handling**: Adaptive monitoring that waits for actual state changes
 - **Rollback Support**: Stops on first failure to prevent cascade issues
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Check Maintenance Status
 ```bash
@@ -347,7 +347,7 @@ ansible-playbook -i hosts.yml maintenance.yml --tags check_updates --check
 ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags resume
 ```
 
-## 🏷️ Tag Reference
+## Tag Reference
 
 | Tag | Description | Use Case |
 |-----|-------------|----------|
@@ -364,11 +364,11 @@ ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags resume
 | `redhat` | RHEL/CentOS only | OS-specific operations |
 | `longhorn` | Longhorn operations | Storage-specific tasks |
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -376,7 +376,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool performs maintenance operations on your Kubernetes cluster. Always:
 - Test in a non-production environment first
