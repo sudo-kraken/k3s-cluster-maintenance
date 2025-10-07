@@ -60,15 +60,15 @@ group_vars/
 
 ## Features
 
-- ** Automated OS Patching**: System updates, security patches, and package upgrades
-- ** Zero-Downtime Operations**: Sequential node processing preserves cluster availability
-- ** Intelligent Detection**: Automatically skips maintenance when no updates are available
-- ** Health Monitoring**: Comprehensive cluster and storage validation
-- ** Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
-- ** Control Plane Safety**: Master node handling with quorum protection
-- ** Storage Integration**: Native Longhorn support with volume health verification
-- ** Reboot Management**: Smart reboot handling that adapts to node boot speeds
-- ** Enterprise Ready**: Modular role architecture for scalability and customisation
+- **Automated OS Patching**: System updates, security patches, and package upgrades
+- **Zero-Downtime Operations**: Sequential node processing preserves cluster availability
+- **Intelligent Detection**: Automatically skips maintenance when no updates are available
+- **Health Monitoring**: Comprehensive cluster and storage validation
+- **Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
+- **Control Plane Safety**: Master node handling with quorum protection
+- **Storage Integration**: Native Longhorn support with volume health verification
+- **Reboot Management**: Smart reboot handling that adapts to node boot speeds
+- **Enterprise Ready**: Modular role architecture for scalability and customisation
 
 ## Repository Contents
 
