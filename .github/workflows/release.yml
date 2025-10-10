@@ -82,7 +82,7 @@ jobs:
             collections/ \
             ansible.cfg \
             maintenance.yml \
-            hosts.example.yml \
+            hosts.yml.example \
             requirements.txt \
             install-collections.sh \
             .python-version \
