@@ -22,8 +22,14 @@ ansible-galaxy collection list | grep -E "(kubernetes\.core|community\.general)"
 
 echo "✅ Collection installation complete!"
 echo ""
-echo "📋 Python dependencies (install with pip install -r requirements.txt):"
-echo "   - kubernetes>=33.1.0"
-echo "   - PyYAML>=6.0"
-echo ""
+
+echo "📋 Installing Python dependencies from requirements.txt..."
+if [ -f "requirements.txt" ]; then
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    echo "✅ Python dependencies installed."
+else
+    echo "⚠️ requirements.txt not found, skipping Python dependency installation."
+fi
+
 echo "🚀 Ready to run K3s maintenance with native Kubernetes modules!"

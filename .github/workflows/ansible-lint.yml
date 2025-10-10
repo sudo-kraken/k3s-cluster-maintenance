@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Ansible Lint
+
+on:
+  push:
+    paths:
+      - ansible/**
+      - .github/workflows/ansible-lint.yml
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ansible-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ansible-lint:
+    name: Lint Ansible Playbooks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c # v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install the project
+        run: uv sync --extra ansible
+
+      - name: Lint Ansible playbooks and roles
+        run: |
+          uv run ansible-lint maintenance.yml roles/

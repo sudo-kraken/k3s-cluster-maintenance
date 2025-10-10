@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Devcontainer Smoke Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: devcontainer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Smoke Test Dev Container
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          runCmd: echo "container up"
+
+      - name: Verify tools and settings inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          runCmd: |
+            bash -lc '
+              set -euo pipefail
+
+              echo "User check"
+              id -un | grep -qx vscode
+
+              echo "PATH check"
+              echo "$PATH" | grep -q "/usr/local/bin"
+
+              echo "Python and pip"
+              python3 --version
+              pip3 --version
+
+              echo "Check Python dependencies"
+              pip3 list | grep -E "ansible|kubernetes|PyYAML"
+
+              echo "Check Ansible and ansible-lint"
+              command -v ansible >/dev/null
+              ansible --version
+              command -v ansible-lint >/dev/null
+              ansible-lint --version
+
+              echo "Run install-collections.sh"
+              ./install-collections.sh
+
+              echo "Verify Ansible collections"
+              ansible-galaxy collection list | grep kubernetes.core
+
+              echo "OK: devcontainer is healthy for k3s maintenance"
+            '

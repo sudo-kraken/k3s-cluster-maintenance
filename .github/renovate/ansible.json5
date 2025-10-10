@@ -1,0 +1,33 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  customManagers: [
+    {
+      description: ["Process Ansible role meta files"],
+      customType: "regex",
+      fileMatch: ["(^|/)roles\\S+meta/\\S+\\.ya?ml"],
+      matchStrings: ['min_ansible_version:\\s+"(?<currentValue>\\S*)"'],
+      depNameTemplate: "ansible-core",
+      datasourceTemplate: "pypi",
+    },
+    {
+      description: ["Process Ansible application version in files"],
+      customType: "regex",
+      fileMatch: ["(^|/)roles\\S+defaults/\\S+\\.ya?ml"],
+      matchStrings: [
+        'renovate:[\\s]+datasource=(?<datasource>\\S*)[\\s]+depName=(?<depName>\\S*)([\\s]+registryUrl=(?<registryUrl>\\S*))?\r?\n[\\S]+\\s"?(?<currentValue>[a-zA-Z0-9-_.+]+)"?',
+      ],
+    },
+  ],
+  packageRules: [
+    {
+      description: ["Group ansible release"],
+      groupName: "ansible version",
+      matchDatasources: ["pypi"],
+      matchDepPatterns: [
+        "ansible/ansible",
+        "ansible-core",
+        "ansible/ansible-lint",
+      ],
+    },
+  ],
+}
