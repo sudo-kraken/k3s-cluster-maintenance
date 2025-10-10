@@ -25,9 +25,12 @@ echo ""
 
 echo "📋 Installing Python dependencies from requirements.txt..."
 if [ -f "requirements.txt" ]; then
+    echo "🔒 Creating and activating Python virtual environment..."
+    python3 -m venv .venv
+    source .venv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
-    echo "✅ Python dependencies installed."
+    echo "✅ Python dependencies installed in .venv."
 else
     echo "⚠️ requirements.txt not found, skipping Python dependency installation."
 fi

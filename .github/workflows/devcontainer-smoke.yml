@@ -51,9 +51,6 @@ jobs:
               command -v ansible-lint >/dev/null
               ansible-lint --version
 
-              echo "Run install-collections.sh"
-              ./install-collections.sh
-
               echo "Verify Ansible collections"
               ansible-galaxy collection list | grep kubernetes.core
 

@@ -5,9 +5,11 @@ RUN sudo apt update && sudo apt install -y \
 	python3-pip \
 	python3-venv \
 	ansible \
+    ansible-lint \
 	curl \
 	git \
 	bash-completion \
 	&& sudo apt clean
 
-# Remove SSL cert copy step (add back if you need it)
+COPY ../install-collections.sh /workspaces/k3s-cluster-maintenance/install-collections.sh
+RUN chmod +x /workspaces/k3s-cluster-maintenance/install-collections.sh

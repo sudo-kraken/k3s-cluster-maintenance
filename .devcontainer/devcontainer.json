@@ -4,7 +4,7 @@
     "context": "../",
     "dockerfile": "Dockerfile"
   },
-  "postCreateCommand": "./install-collections.sh",
+  "postCreateCommand": "bash ./install-collections.sh",
   "features": {
     "ghcr.io/audacioustux/devcontainers/taskfile:1": {}
     },
