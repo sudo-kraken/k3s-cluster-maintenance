@@ -8,6 +8,7 @@ on:
       - ansible/**
       - .github/workflows/ansible-lint.yml
   pull_request:
+  workflow_dispatch:
 
 permissions: {}
 
