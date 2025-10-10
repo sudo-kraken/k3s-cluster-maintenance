@@ -2,8 +2,10 @@
 # Check for available package updates and determine if maintenance is needed
 - name: Check for available package updates (apt)
   become: true
-  shell: apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
-  register: apt_updates_available
+  ansible.builtin.shell: |
+    set -o pipefail
+    apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+  register: k3s_node_maintenance_apt_updates_available
   when: ansible_facts['os_family'] == 'Debian'
   changed_when: false
   tags: [packages, check_updates, debian]
@@ -12,35 +14,35 @@
   become: true
   ansible.builtin.dnf:
     list: updates
-  register: dnf_updates_available
+  register: k3s_node_maintenance_dnf_updates_available
   when: ansible_facts['os_family'] == 'RedHat'
   tags: [packages, check_updates, redhat]
 
 - name: Determine if maintenance is needed
-  set_fact:
-    packages_need_update: >-
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_packages_need_update: >-
       {{
-        (ansible_facts['os_family'] == 'Debian' and (apt_updates_available.stdout | int) > 0) or
-        (ansible_facts['os_family'] == 'RedHat' and (dnf_updates_available.results | length) > 0)
+        (ansible_facts['os_family'] == 'Debian' and (k3s_node_maintenance_apt_updates_available.stdout | int) > 0) or
+        (ansible_facts['os_family'] == 'RedHat' and (k3s_node_maintenance_dnf_updates_available.results | length) > 0)
       }}
-    update_count: >-
+    k3s_node_maintenance_update_count: >-
       {{
-        (apt_updates_available.stdout | int) if ansible_facts['os_family'] == 'Debian'
-        else (dnf_updates_available.results | length)
+        (k3s_node_maintenance_apt_updates_available.stdout | int) if ansible_facts['os_family'] == 'Debian'
+        else (k3s_node_maintenance_dnf_updates_available.results | length)
       }}
   tags: [packages, check_updates]
 
 - name: Package update status
-  debug:
+  ansible.builtin.debug:
     msg: |
-      {% if packages_need_update -%}
-      📦 {{ update_count }} package updates available - proceeding with maintenance
+      {% if k3s_node_maintenance_packages_need_update -%}
+      📦 {{ k3s_node_maintenance_update_count }} package updates available - proceeding with maintenance
       {% else -%}
       ✅ No updates available - skipping maintenance
       {% endif %}
   tags: [packages, check_updates]
 
 - name: End play if no updates needed
-  meta: end_play
-  when: not packages_need_update
+  ansible.builtin.meta: end_play
+  when: not k3s_node_maintenance_packages_need_update
   tags: [packages, check_updates]

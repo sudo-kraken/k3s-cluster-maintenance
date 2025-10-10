@@ -1,22 +1,22 @@
 ---
 # Reboot handling and waiting for node readiness
-- name: "🔄 Rebooting {{ inventory_hostname }}"
+- name: "Rebooting node: {{ inventory_hostname }}"
   become: true
-  reboot:
+  ansible.builtin.reboot:
     reboot_timeout: "{{ k3s_node_maintenance_wait_timeout }}"
     connect_timeout: 5
     test_command: uptime
-  when: reboot_required
+  when: k3s_node_maintenance_reboot_required
   tags: [reboot, reboot_server]
 
 - name: Stabilisation wait
   delegate_to: localhost
-  pause:
+  ansible.builtin.pause:
     seconds: 30
-  when: reboot_required
+  when: k3s_node_maintenance_reboot_required
   tags: [reboot, reboot_wait]
 
-- name: "✅ Node ready check"
+- name: Node ready check
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: v1
@@ -27,5 +27,5 @@
       type: Ready
       status: "True"
     wait_timeout: "{{ k3s_node_maintenance_wait_timeout }}"
-  when: reboot_required
+  when: k3s_node_maintenance_reboot_required
   tags: [reboot, reboot_ready, restore]

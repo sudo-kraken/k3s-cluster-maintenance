@@ -2,39 +2,40 @@
 # Debian/Ubuntu package updates
 - name: Update package cache
   become: true
-  apt:
+  ansible.builtin.apt:
     update_cache: true
     cache_valid_time: "{{ k3s_node_maintenance_apt_cache_valid_time }}"
   tags: [packages, updates, debian, cache]
 
 - name: List upgradable packages
   become: true
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     apt list --upgradable 2>/dev/null | tail -n +2
-  register: apt_upgrade_list
+  register: k3s_node_maintenance_apt_upgrade_list
   changed_when: false
   tags: [packages, updates, debian, list]
 
 - name: Parse package list
-  set_fact:
-    apt_packages_to_upgrade: >-
-      {{ apt_upgrade_list.stdout_lines | map('regex_replace', '/.*$', '') | list }}
-  when: apt_upgrade_list.stdout_lines | length > 0
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_apt_packages_to_upgrade: >-
+      {{ k3s_node_maintenance_apt_upgrade_list.stdout_lines | map('regex_replace', '/.*$', '') | list }}
+  when: k3s_node_maintenance_apt_upgrade_list.stdout_lines | length > 0
   tags: [packages, updates, debian, parse]
 
-- name: "⚡ Upgrading {{ apt_packages_to_upgrade | length }} packages"
+- name: "Upgrading packages: {{ k3s_node_maintenance_apt_packages_to_upgrade | length }}"
   become: true
-  apt:
+  ansible.builtin.apt:
     upgrade: dist
-  register: apt_upgrade_result
+  register: k3s_node_maintenance_apt_upgrade_result
   when:
-    - apt_packages_to_upgrade is defined
-    - apt_packages_to_upgrade | length > 0
+    - k3s_node_maintenance_apt_packages_to_upgrade is defined
+    - k3s_node_maintenance_apt_packages_to_upgrade | length > 0
   tags: [packages, updates, debian, upgrade]
 
 - name: Check reboot requirement
   become: true
-  stat:
+  ansible.builtin.stat:
     path: /var/run/reboot-required
-  register: apt_reboot_required
+  register: k3s_node_maintenance_apt_reboot_required
   tags: [packages, updates, debian, reboot_check]

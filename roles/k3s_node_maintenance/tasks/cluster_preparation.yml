@@ -8,11 +8,13 @@
     field_selectors:
       - spec.nodeName={{ inventory_hostname }}
     namespace: longhorn-system
-  register: longhorn_pods_info
+  register: k3s_node_maintenance_longhorn_pods_info
   tags: [cluster, prepare, longhorn]
 
 - name: Disable Longhorn scheduling (if present)
   delegate_to: localhost
+  when: (k3s_node_maintenance_longhorn_pods_info.resources | length) > 0
+  tags: [cluster, prepare, longhorn]
   block:
     - name: Check Longhorn Node CR
       kubernetes.core.k8s_info:
@@ -20,7 +22,7 @@
         kind: Node
         name: "{{ inventory_hostname }}"
         namespace: longhorn-system
-      register: longhorn_node_check
+      register: k3s_node_maintenance_longhorn_node_check
 
     - name: Disable scheduling
       kubernetes.core.k8s:
@@ -33,18 +35,16 @@
         definition:
           spec:
             allowScheduling: false
-      when: longhorn_node_check.resources | length > 0
+      when: k3s_node_maintenance_longhorn_node_check.resources | length > 0
 
     - name: Wait for Longhorn to disable scheduling
-      pause:
+      ansible.builtin.pause:
         seconds: 15
-      when: longhorn_node_check.resources | length > 0
-
-  when: (longhorn_pods_info.resources | length) > 0
-  tags: [cluster, prepare, longhorn]
+      when: k3s_node_maintenance_longhorn_node_check.resources | length > 0
 
 - name: Prepare node for maintenance
   delegate_to: localhost
+  tags: [cluster, prepare, drain]
   block:
     - name: Cordon node
       kubernetes.core.k8s:
@@ -63,13 +63,13 @@
         kind: Pod
         field_selectors:
           - spec.nodeName={{ inventory_hostname }}
-      register: node_pods
+      register: k3s_node_maintenance_node_pods
 
     - name: Filter drainable pods
-      set_fact:
-        pods_to_drain: |
+      ansible.builtin.set_fact:
+        k3s_node_maintenance_pods_to_drain: |
           {%- set filtered_pods = [] -%}
-          {%- for pod in node_pods.resources -%}
+          {%- for pod in k3s_node_maintenance_node_pods.resources -%}
             {%- set is_daemonset = false -%}
             {%- if pod.metadata.ownerReferences is defined -%}
               {%- for owner in pod.metadata.ownerReferences -%}
@@ -85,9 +85,9 @@
           {{ filtered_pods }}
 
     - name: Node drain status
-      debug:
-        msg: "🔄 Draining {{ pods_to_drain | length }} pods from {{ inventory_hostname }}"
-      when: pods_to_drain | length > 0
+      ansible.builtin.debug:
+        msg: "🔄 Draining {{ k3s_node_maintenance_pods_to_drain | length }} pods from {{ inventory_hostname }}"
+      when: k3s_node_maintenance_pods_to_drain | length > 0
 
     - name: Drain pods from node
       kubernetes.core.k8s:
@@ -100,13 +100,12 @@
         wait_timeout: 60
         delete_options:
           gracePeriodSeconds: 30
-      loop: "{{ pods_to_drain }}"
+      loop: "{{ k3s_node_maintenance_pods_to_drain }}"
       loop_control:
         label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
-      register: drain_result
+      register: k3s_node_maintenance_drain_result
       failed_when: false
 
     - name: Drain completed
-      debug:
+      ansible.builtin.debug:
         msg: "✅ Node drain completed - ready for maintenance"
-  tags: [cluster, prepare, drain]

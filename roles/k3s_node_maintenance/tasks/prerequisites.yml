@@ -1,7 +1,7 @@
 ---
 # Prerequisites and pre-flight checks
 - name: Gather OS family facts
-  setup:
+  ansible.builtin.setup:
     gather_subset:
       - 'os_family'
   tags: [always, prerequisites, setup]
@@ -9,35 +9,39 @@
 - name: Validate maintenance prerequisites
   delegate_to: localhost
   ansible.builtin.shell: |
+    set -o pipefail
     # Check kubernetes.core collection
     if ! ansible-galaxy collection list | grep -q kubernetes.core; then
-      echo "❌ Missing kubernetes.core collection"
+      echo "Missing kubernetes.core collection"
       exit 1
     fi
-    
+
     # Check kubectl
     if ! command -v kubectl >/dev/null; then
-      echo "❌ kubectl not found on localhost"
+      echo "kubectl not found on localhost"
       exit 1
     fi
-    
-    echo "✅ Prerequisites validated"
-  register: prereq_check
-  failed_when: prereq_check.rc != 0
+
+    echo "Prerequisites validated"
+  register: k3s_node_maintenance_prereq_check
+  failed_when: k3s_node_maintenance_prereq_check.rc != 0
+  changed_when: false
   tags: [prerequisites]
 
 - name: Check target node tools
   become: true
-  shell: |
+  ansible.builtin.shell: |
+    set -o pipefail
     os_family="{{ ansible_facts['os_family'] }}"
     if [ "$os_family" = "RedHat" ] && ! command -v dnf >/dev/null; then
-      echo "❌ dnf not available"
+      echo "dnf not available"
       exit 1
     elif [ "$os_family" = "Debian" ] && ! command -v apt-get >/dev/null; then
-      echo "❌ apt-get not available"
+      echo "apt-get not available"
       exit 1
     fi
-    echo "✅ Tools available ($os_family)"
-  register: tools_check
-  failed_when: tools_check.rc != 0
+    echo "Tools available ($os_family)"
+  register: k3s_node_maintenance_tools_check
+  failed_when: k3s_node_maintenance_tools_check.rc != 0
+  changed_when: false
   tags: [prerequisites]

@@ -1,6 +1,6 @@
 ---
 # Cluster restoration tasks - uncordoning and re-enabling Longhorn
-- name: "🔓 Uncordoning {{ inventory_hostname }}"
+- name: "Uncordoning node: {{ inventory_hostname }}"
   delegate_to: localhost
   kubernetes.core.k8s:
     api_version: v1
@@ -20,16 +20,18 @@
     kind: Node
     name: "{{ inventory_hostname }}"
     namespace: longhorn-system
-  register: longhorn_node_info
+  register: k3s_node_maintenance_longhorn_node_info
   tags: [restore, longhorn, resume]
 
 - name: Set Longhorn scheduling facts
-  set_fact:
-    longhorn_node_exists: "{{ longhorn_node_info.resources | length > 0 }}"
-    longhorn_scheduling_disabled: "{{ longhorn_node_info.resources | length > 0 and longhorn_node_info.resources[0].spec.allowScheduling == false }}"
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_longhorn_node_exists: "{{ k3s_node_maintenance_longhorn_node_info.resources | length > 0 }}"
+    k3s_node_maintenance_longhorn_scheduling_disabled: >-
+      {{ k3s_node_maintenance_longhorn_node_info.resources | length > 0 and
+      k3s_node_maintenance_longhorn_node_info.resources[0].spec.allowScheduling == false }}
   tags: [restore, longhorn, resume]
 
-- name: "🔄 Re-enabling Longhorn scheduling"
+- name: Re-enabling Longhorn scheduling
   delegate_to: localhost
   kubernetes.core.k8s:
     api_version: longhorn.io/v1beta2
@@ -41,7 +43,7 @@
     definition:
       spec:
         allowScheduling: true
-  when: longhorn_node_exists and longhorn_scheduling_disabled
+  when: k3s_node_maintenance_longhorn_node_exists and k3s_node_maintenance_longhorn_scheduling_disabled
   tags: [restore, longhorn, resume]
 
 - name: Longhorn pod readiness
@@ -57,17 +59,17 @@
       type: Ready
       status: "True"
     wait_timeout: 120
-  when: longhorn_node_exists and longhorn_scheduling_disabled
-  register: longhorn_pod_wait
+  when: k3s_node_maintenance_longhorn_node_exists and k3s_node_maintenance_longhorn_scheduling_disabled
+  register: k3s_node_maintenance_longhorn_pod_wait
   ignore_errors: true
   tags: [restore, longhorn, resume]
 
-- name: "✅ {{ inventory_hostname }} restoration complete"
+- name: "Restoration complete for: {{ inventory_hostname }}"
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
     name: "{{ inventory_hostname }}"
-  register: final_node_info
-  failed_when: final_node_info.resources[0].spec.unschedulable | default(false)
+  register: k3s_node_maintenance_final_node_info
+  failed_when: k3s_node_maintenance_final_node_info.resources[0].spec.unschedulable | default(false)
   tags: [restore, verify, resume]

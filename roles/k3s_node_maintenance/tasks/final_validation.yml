@@ -14,18 +14,19 @@
 
 - name: Validate cluster health
   delegate_to: localhost
+  tags: [validation, cluster_health, final]
   block:
     - name: Get all nodes status
       kubernetes.core.k8s_info:
         api_version: v1
         kind: Node
-      register: all_nodes
+      register: k3s_node_maintenance_all_nodes
 
     - name: Set cluster health facts
-      set_fact:
-        ready_nodes: |
+      ansible.builtin.set_fact:
+        k3s_node_maintenance_ready_nodes: |
           {%- set ready_count = namespace(value=0) -%}
-          {%- for node in all_nodes.resources -%}
+          {%- for node in k3s_node_maintenance_all_nodes.resources -%}
             {%- for condition in node.status.conditions | default([]) -%}
               {%- if condition.type == "Ready" and condition.status == "True" -%}
                 {%- set ready_count.value = ready_count.value + 1 -%}
@@ -33,15 +34,16 @@
             {%- endfor -%}
           {%- endfor -%}
           {{- ready_count.value -}}
-        total_nodes: "{{ all_nodes.resources | length }}"
-        schedulable_nodes: "{{ all_nodes.resources | rejectattr('spec.unschedulable', 'defined') | list | length }}"
+        k3s_node_maintenance_total_nodes: "{{ k3s_node_maintenance_all_nodes.resources | length }}"
+        k3s_node_maintenance_schedulable_nodes: >-
+          {{ k3s_node_maintenance_all_nodes.resources |
+          rejectattr('spec.unschedulable', 'defined') | list | length }}
 
     - name: Validate cluster health
-      assert:
+      ansible.builtin.assert:
         that:
-          - ready_nodes | int == total_nodes | int
-          - schedulable_nodes | int >= (total_nodes | int - 1)
-        fail_msg: "❌ Cluster validation failed - Ready: {{ ready_nodes }}/{{ total_nodes }}"
-        success_msg: "✅ Maintenance complete - {{ inventory_hostname }} updated successfully"
-
-  tags: [validation, cluster_health, final]
+          - k3s_node_maintenance_ready_nodes | int == k3s_node_maintenance_total_nodes | int
+          - k3s_node_maintenance_schedulable_nodes | int >= (k3s_node_maintenance_total_nodes | int - 1)
+        fail_msg: >-
+          Cluster validation failed - Ready: {{ k3s_node_maintenance_ready_nodes }}/{{ k3s_node_maintenance_total_nodes }}
+        success_msg: "Maintenance complete - {{ inventory_hostname }} updated successfully"

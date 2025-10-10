@@ -8,15 +8,15 @@
     api_version: v1
     kind: Node
     name: "{{ inventory_hostname }}"
-  register: node_status_info
+  register: k3s_node_maintenance_node_status_info
   tags: [resume, status]
 
 - name: Set node ready status fact
-  set_fact:
-    node_is_ready: |
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_node_is_ready: |
       {%- set ready = false -%}
-      {%- if node_status_info.resources[0].status.conditions is defined -%}
-        {%- for condition in node_status_info.resources[0].status.conditions -%}
+      {%- if k3s_node_maintenance_node_status_info.resources[0].status.conditions is defined -%}
+        {%- for condition in k3s_node_maintenance_node_status_info.resources[0].status.conditions -%}
           {%- if condition.type == "Ready" and condition.status == "True" -%}
             {%- set ready = true -%}
           {%- endif -%}
@@ -36,9 +36,9 @@
       type: Ready
       status: "True"
     wait_timeout: 300
-  when: not node_is_ready
+  when: not k3s_node_maintenance_node_is_ready
   tags: [resume, wait_ready]
 
 - name: Include cluster restoration
-  include_tasks: cluster_restoration.yml
+  ansible.builtin.include_tasks: cluster_restoration.yml
   tags: [resume, restore]
