@@ -10,6 +10,7 @@
     ":dependencyDashboard",
     ":semanticCommits",
     ":timezone(Europe/London)",
+    "github>sudo-kraken/k3s-cluster-maintenance//.github/renovate/actions.json5",
     "github>sudo-kraken/k3s-cluster-maintenance//.github/renovate/ansible.json5",
     "github>sudo-kraken/k3s-cluster-maintenance//.github/renovate/devContainers.json5",
     "github>sudo-kraken/k3s-cluster-maintenance//.github/renovate/labels.json5",
@@ -21,14 +22,7 @@
   pruneStaleBranches: true,
   pruneBranchAfterAutomerge: true,
   prConcurrentLimit: 5,
-  schedule: ["before 9pm on friday"],
   labels: ["dependencies"],
+  schedule: ["after 9pm on sunday"],
   minimumReleaseAge: "7 days",
-
-  packageRules: [
-    {
-      matchManagers: ["github-actions"],
-      minimumReleaseAge: null,
-    },
-  ],
 }
