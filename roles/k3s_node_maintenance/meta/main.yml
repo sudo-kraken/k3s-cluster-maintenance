@@ -5,7 +5,7 @@ galaxy_info:
   description: Automated OS patching and maintenance for K3s cluster nodes
   company: "sudo-kraken"
   license: MIT
-  min_ansible_version: "2.9"
+  min_ansible_version: "2.19.2"
   platforms:
     - name: Ubuntu
       versions:
