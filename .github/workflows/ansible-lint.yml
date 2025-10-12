@@ -38,7 +38,7 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install the project
-        run: uv sync --extra ansible
+        run: uv sync --extra ansible --prerelease=allow
 
       - name: Lint Ansible playbooks and roles
         run: |
