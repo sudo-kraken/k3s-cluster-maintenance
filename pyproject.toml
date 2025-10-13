@@ -3,7 +3,7 @@ name = "k3s-cluster-maintenance"
 version = "0.0.0"
 description = "Enterprise K3s maintenance automation - Zero-downtime OS patching with intelligent health checks, Longhorn integration, and role-based Ansible architecture. Production-ready sequential node updates."
 readme = "README.md"
-keywords = ["ansible", "selfhosted", "homelab", "terragrunt", "argocd"]
+keywords = ["ansible", "selfhosted", "homelab", "k3s", "k3os", "k3sup", "rancher", "longhorn", "automation", "devops", "infrastructure", "it", "itops", "sysadmin", "systemadministration", "orchestration", "configurationmanagement"]
 authors = [{ name = "Joe Harrison", email = "sudo-kraken@prxy.8shield.net" }]
 license = { file = "LICENSE" }
 classifiers = [
@@ -19,10 +19,13 @@ requires-python = ">=3.12,<4.0.0"
 
 [project.optional-dependencies]
 ansible = [
-  "ansible-core~=2.19.5",
+  "ansible-core>=2.19.0",
   "ansible-lint~=25.9.0",
+  "yamllint~=1.37.0",
+  "kubernetes>=29,<32",
   "dnspython~=2.8.0",
   "netaddr~=1.3.0",
+  "jinja2~=3.1.4",  
   "cryptography~=46.0.1",
   "passlib~=1.7.4",
   "bcrypt~=5.0.0",

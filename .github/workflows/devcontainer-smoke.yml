@@ -23,11 +23,13 @@ jobs:
       - name: Build devcontainer
         uses: devcontainers/ci@8bf61b26e9c3a98f69cb6ce2f88d24ff59b785c6 # v0.3
         with:
+          push: never
           runCmd: echo "container up"
 
       - name: Verify tools and settings inside devcontainer
         uses: devcontainers/ci@8bf61b26e9c3a98f69cb6ce2f88d24ff59b785c6 # v0.3
         with:
+          push: never
           runCmd: |
             bash -lc '
               set -euo pipefail
@@ -38,21 +40,23 @@ jobs:
               echo "PATH check"
               echo "$PATH" | grep -q "/usr/local/bin"
 
-              echo "Python and pip"
-              python3 --version
-              pip3 --version
+              echo "uv present"
+              command -v uv >/dev/null
+              uv --version
 
-              echo "Check Python dependencies"
-              pip3 list | grep -E "ansible|kubernetes|PyYAML"
+              echo "Python via uv env"
+              uv run python -c "import sys; print(\"Interpreter:\", sys.executable); print(\"Version:\", sys.version)"
 
-              echo "Check Ansible and ansible-lint"
-              command -v ansible >/dev/null
-              ansible --version
-              command -v ansible-lint >/dev/null
-              ansible-lint --version
+              echo "Check Python dependencies in uv env"
+              uv run python -c "import importlib.util as u, sys; mods=[\"ansible\",\"kubernetes\",\"yaml\",\"jinja2\",\"requests\",\"jsonpatch\"]; missing=[m for m in mods if u.find_spec(m) is None]; print(\"Missing:\", missing); sys.exit(1 if missing else 0)"
 
-              echo "Verify Ansible collections"
-              ansible-galaxy collection list | grep kubernetes.core
+              echo "Check Ansible and ansible-lint via uv"
+              uv run ansible --version
+              uv run ansible-lint --version
+
+              echo "Verify Ansible collections from project env"
+              uv run ansible-galaxy collection list | tee /tmp/collections.txt
+              grep -E -q "^kubernetes\\.core[[:space:]]" /tmp/collections.txt
 
               echo "OK: devcontainer is healthy for k3s maintenance"
             '

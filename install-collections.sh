@@ -1,38 +1,40 @@
 #!/bin/bash
 # Install required Ansible collections for K3s maintenance
 
-echo "🔧 Installing Ansible collections for K3s cluster maintenance..."
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Install kubernetes.core collection
-if ! ansible-galaxy collection list | grep -q kubernetes.core; then
-    echo "📦 Installing kubernetes.core collection..."
-    ansible-galaxy collection install kubernetes.core
+PYTHON_VERSION="${PYTHON_VERSION:-}"
+LOCK="${LOCK:-true}"
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required. See https://docs.astral.sh/uv/ for installation instructions." >&2
+  exit 1
+fi
+
+# Create or reuse a local venv managed by uv
+if [[ -n "${PYTHON_VERSION}" ]]; then
+  uv venv --python "${PYTHON_VERSION}"
 else
-    echo "✅ kubernetes.core collection already installed"
+  uv venv
 fi
 
-# Check if requirements file exists and install from it
-if [ -f "collections/requirements.yml" ]; then
-    echo "📦 Installing collections from requirements.yml..."
-    ansible-galaxy collection install -r collections/requirements.yml
+# Install Python deps from pyproject.toml / uv.lock if present, else fall back to requirements.txt
+if [[ -f "pyproject.toml" ]]; then
+  if [[ "${LOCK}" == "true" && -f "uv.lock" ]]; then
+    uv sync --frozen --extra ansible
+  else
+    uv sync --extra ansible
+  fi
 fi
 
-echo "🔍 Verifying installations..."
-ansible-galaxy collection list | grep -E "(kubernetes\.core|community\.general)"
-
-echo "✅ Collection installation complete!"
-echo ""
-
-echo "📋 Installing Python dependencies from requirements.txt..."
-if [ -f "requirements.txt" ]; then
-    echo "🔒 Creating and activating Python virtual environment..."
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    echo "✅ Python dependencies installed in .venv."
+# Install required Ansible collections
+if [[ -f "collections/requirements.yml" ]]; then
+  uvx --from ansible-core ansible-galaxy collection install -r collections/requirements.yml
 else
-    echo "⚠️ requirements.txt not found, skipping Python dependency installation."
+  uvx --from ansible-core ansible-galaxy collection install kubernetes.core
 fi
 
-echo "🚀 Ready to run K3s maintenance with native Kubernetes modules!"
+uv run python -c 'import sys; print("Interpreter:", sys.executable)'
+uvx --from ansible-core ansible --version || true
+uvx --from ansible-core ansible-galaxy --version || true

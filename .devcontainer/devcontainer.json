@@ -6,11 +6,18 @@
   },
   "postCreateCommand": "bash ./install-collections.sh",
   "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/python:1": {},
     "ghcr.io/audacioustux/devcontainers/taskfile:1": {}
-    },
+  },
   "mounts": [
     "source=/tmp,target=/tmp,type=bind,consistency=cached"
   ],
+  "containerEnv": {
+    "UV_INSTALL_DIR": "/usr/local/bin",
+    "UV_LINK_MODE": "copy"
+  },
   "userEnvProbe": "loginInteractiveShell",
   "customizations": {
     "vscode": {
@@ -27,8 +34,18 @@
         "donjayamanne.githistory",
         "eamodio.gitlens",
         "task.vscode-task",
-        "EditorConfig.EditorConfig"
-      ]
+        "EditorConfig.EditorConfig",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "editor.formatOnSave": true,
+        "files.eol": "\n",
+        "files.insertFinalNewline": true,
+        "files.trimTrailingWhitespace": true,
+        "ruff.enable": true
+      }
     }
   }
 }
