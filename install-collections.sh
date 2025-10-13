@@ -1,7 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Install required Ansible collections for K3s maintenance
 
-#!/usr/bin/env bash
 set -euo pipefail
 
 PYTHON_VERSION="${PYTHON_VERSION:-}"
