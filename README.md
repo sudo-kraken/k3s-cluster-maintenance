@@ -308,7 +308,7 @@ This project is licensed under the MIT Licence. See the [LICENCE](LICENCE) file 
 
 ## Security
 
-If you discover a security issue, please review and follow the guidance in [SECURITY.md](SECURITY.md) if present, or open a private security-focused issue with minimal details and request a secure contact channel.
+If you discover a security issue, please review and follow the guidance in [SECURITY.md](SECURITY.md), or open a private security-focused issue with minimal details and request a secure contact channel.
 
 ## Contributing
 
