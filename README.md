@@ -1,137 +1,118 @@
-# K3s Cluster Maintenance
+<div align="center">
+<img src="docs/assets/logo.png" align="center" width="144px" height="144px"/>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Ansible](https://img.shields.io/badge/Ansible-Required-red.svg)](https://ansible.com)
+### K3s Cluster Maintenance
 
-**Enterprise-grade automated OS patching and system maintenance for K3s cluster nodes** with zero-downtime operations. This tool safely applies operating system updates, security patches, and package upgrades to your K3s nodes using a modular Ansible role architecture.
+_A modular Ansible role and playbook that performs automated operating system patching and system maintenance on K3s cluster nodes with zero-downtime semantics. Designed for local runs or CI runners._
+</div>
 
-## Quick Start
+<div align="center">
 
-Run maintenance operations with simple commands:
+[![Ansible](https://img.shields.io/badge/Ansible-Required-red.svg?style=for-the-badge)](https://ansible.com) [![Ansible Version](https://img.shields.io/badge/Ansible-2.14%2B-blue?logo=ansible&style=for-the-badge)](https://docs.ansible.com/) 
 
-```bash
-# Update all worker nodes
-ansible-playbook -i hosts.yml maintenance.yml --limit k3s_workers
+</div>
 
-# Update all master nodes  
-ansible-playbook -i hosts.yml maintenance.yml --limit k3s_masters
+<div align="center">
 
-# Update specific node
-ansible-playbook -i hosts.yml maintenance.yml --limit node-01
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sudo-kraken/k3s-cluster-maintenance?label=openssf%20scorecard&style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/sudo-kraken/k3s-cluster-maintenance)
 
-# Update entire cluster
-ansible-playbook -i hosts.yml maintenance.yml
-```
+</div>
 
-## Enterprise Architecture
+## Contents
 
-This tool uses a modular Ansible role-based architecture for production deployments:
+- [Overview](#overview)
+- [Architecture at a glance](#architecture-at-a-glance)
+  - [Role structure](#role-structure)
+  - [Group variables](#group-variables)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+  - [Role variables](#role-variables)
+  - [Inventory structure](#inventory-structure)
+  - [Repository contents](#repository-contents)
+  - [Tag reference](#tag-reference)
+- [Health](#health)
+- [Endpoint](#endpoint)
+- [Production notes](#production-notes)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Licence](#licence)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Support](#support)
+- [Disclaimer](#disclaimer)
 
-### Role Structure
+## Overview
+
+Enterprise-grade automation for K3s clusters that safely applies system updates, security patches and package upgrades across master and worker nodes without impacting availability. Operations are orchestrated through a production-ready Ansible role that handles draining, reboots and post-update restoration.
+
+## Architecture at a glance
+
+- Modular Ansible role with `maintenance.yml` as the entry point
+- Sequential node processing for zero-downtime
+- Smart detection to skip when no updates are available
+- Longhorn-aware storage health checks and recovery waits
+- Robust reboot handling with adaptive wait logic
+- Group-based configuration via `group_vars`
+
+### Role structure
+
 ```
 roles/
   k3s_node_maintenance/
     ├── tasks/
-    │   ├── main.yml              # Main task orchestration
-    │   ├── prerequisites.yml     # Pre-flight checks
-    │   ├── package_checks.yml    # Update detection
-    │   ├── cluster_preparation.yml # Node draining
-    │   ├── package_updates.yml   # OS updates
-    │   ├── debian_updates.yml    # Debian/Ubuntu specific
-    │   ├── redhat_updates.yml    # RHEL/CentOS specific
-    │   ├── reboot_handling.yml   # Reboot coordination
-    │   └── cluster_restoration.yml # Node restoration
+    │   ├── main.yml                 # Main task orchestration
+    │   ├── prerequisites.yml        # Pre-flight checks
+    │   ├── package_checks.yml       # Update detection
+    │   ├── cluster_preparation.yml  # Node draining
+    │   ├── package_updates.yml      # OS updates
+    │   ├── debian_updates.yml       # Debian/Ubuntu specific
+    │   ├── redhat_updates.yml       # RHEL/CentOS specific
+    │   ├── reboot_handling.yml      # Reboot coordination
+    │   └── cluster_restoration.yml  # Node restoration
     ├── defaults/
-    │   └── main.yml              # Default variables
+    │   └── main.yml                 # Default variables
     ├── handlers/
-    │   └── main.yml              # Event handlers
+    │   └── main.yml                 # Event handlers
     └── meta/
-        └── main.yml              # Role metadata
+        └── main.yml                 # Role metadata
 ```
 
-### Group Variables
+### Group variables
+
 ```
 group_vars/
-  ├── k3s_masters/main.yml      # Master-specific settings
-  ├── k3s_workers/main.yml      # Worker-specific settings
-  ├── os_debian/main.yml        # Debian/Ubuntu settings
-  └── os_redhat/main.yml        # RHEL/CentOS settings
+  ├── k3s_masters/main.yml   # Master-specific settings
+  ├── k3s_workers/main.yml   # Worker-specific settings
+  ├── os_debian/main.yml     # Debian/Ubuntu settings
+  └── os_redhat/main.yml     # RHEL/CentOS settings
 ```
 
 ## Features
 
-- **Automated OS Patching**: System updates, security patches, and package upgrades
-- **Zero-Downtime Operations**: Sequential node processing preserves cluster availability
-- **Intelligent Detection**: Automatically skips maintenance when no updates are available
-- **Health Monitoring**: Comprehensive cluster and storage validation
-- **Storage Recovery**: Automatic wait for degraded Longhorn volumes to recover
-- **Control Plane Safety**: Master node handling with quorum protection
-- **Storage Integration**: Native Longhorn support with volume health verification
-- **Reboot Management**: Smart reboot handling that adapts to node boot speeds
-- **Enterprise Ready**: Modular role architecture for scalability and customisation
-
-## Repository Contents
-
-| File | Description |
-|------|-------------|
-| `maintenance.yml` | Main playbook using enterprise role architecture |
-| `hosts.yml.example` | Example inventory with group structure |
-| `ansible.cfg` | Ansible configuration |
-| `roles/` | Modular role architecture |
-| `group_vars/` | Node type and OS-specific variables |
-| `requirements.txt` | Python dependencies |
+- Automated OS patching: system updates, security patches and package upgrades
+- Zero-downtime operations via safe, sequential node handling
+- Intelligent detection that exits early when no updates are required
+- Health monitoring across nodes, control plane and storage
+- Native Longhorn integration with volume health verification and recovery waits
+- Control plane safety with quorum-aware master handling
+- Smart reboot management that adapts to node boot speeds
+- Enterprise-ready modular role for scalability and customisation
 
 ## Prerequisites
 
-- **K3s cluster** (single or multi-node)
-- **Ansible** (>= 2.9, tested with 2.14.x)
-- **kubectl** configured for your cluster
-- **SSH access** to all nodes with key-based authentication
-- **kubernetes.core collection** for native Kubernetes operations
-- **Python Kubernetes client** for API operations
+- K3s cluster, single or multi-node
+- Ansible 2.9 or newer, tested with 2.14.x
+- kubectl configured for your cluster
+- SSH access to all nodes with key-based authentication
+- `kubernetes.core` Ansible collection
+- Python Kubernetes client for API operations
 
-### Optional Components
-- **Longhorn** storage system (health checks included)
+## Quick start
 
-## Installation
+Run maintenance using simple Ansible commands:
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/sudo-kraken/k3s-cluster-maintenance.git
-cd k3s-cluster-maintenance
-```
-
-### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Install Ansible Collections
-```bash
-# Install required Kubernetes collection
-ansible-galaxy collection install kubernetes.core
-
-# Or install all collections from requirements
-ansible-galaxy collection install -r collections/requirements.yml
-```
-
-**Required Collections:**
-- `kubernetes.core` (>= 2.4.0) - For native Kubernetes API operations
-
-### 4. Configure Inventory
-```bash
-cp hosts.yml.example hosts.yml
-# Edit hosts.yml with your cluster details
-```
-
-### 5. Test Connectivity
-```bash
-ansible all -i hosts.yml -m ping
-```
-
-## Usage Examples
-
-### Basic Maintenance Operations
 ```bash
 # Update all worker nodes
 ansible-playbook -i hosts.yml maintenance.yml --limit k3s_workers
@@ -139,108 +120,40 @@ ansible-playbook -i hosts.yml maintenance.yml --limit k3s_workers
 # Update all master nodes
 ansible-playbook -i hosts.yml maintenance.yml --limit k3s_masters
 
-# Update specific node
-ansible-playbook -i hosts.yml maintenance.yml --limit worker-01
+# Update a specific node
+ansible-playbook -i hosts.yml maintenance.yml --limit node-01
 
-# Update all Debian/Ubuntu nodes
-ansible-playbook -i hosts.yml maintenance.yml --limit os_debian
-
-# Update entire cluster
+# Update the entire cluster
 ansible-playbook -i hosts.yml maintenance.yml
-```
-
-### Advanced Operations
-```bash
-# Dry run (check mode)
-ansible-playbook -i hosts.yml maintenance.yml --check
-
-# Update with custom variables
-ansible-playbook -i hosts.yml maintenance.yml -e "k3s_node_maintenance_wait_timeout=1200"
-
-# Verbose output for debugging
-ansible-playbook -i hosts.yml maintenance.yml -v
-
-# Update specific nodes by pattern
-ansible-playbook -i hosts.yml maintenance.yml --limit "*master*"
-```
-
-### Tagged Operations
-Use tags to run specific phases of maintenance:
-
-```bash
-# Run only prerequisite checks
-ansible-playbook -i hosts.yml maintenance.yml --tags prerequisites
-
-# Check for available updates only
-ansible-playbook -i hosts.yml maintenance.yml --tags packages,check_updates
-
-# Run only cluster preparation (cordon/drain)
-ansible-playbook -i hosts.yml maintenance.yml --tags cluster,prepare
-
-# Run only package updates
-ansible-playbook -i hosts.yml maintenance.yml --tags packages,updates
-
-# Run only reboot handling
-ansible-playbook -i hosts.yml maintenance.yml --tags reboot
-
-# Run only cluster restoration (uncordon)
-ansible-playbook -i hosts.yml maintenance.yml --tags restore
-
-# Resume after manual reboot or failure
-ansible-playbook -i hosts.yml maintenance.yml --tags resume
-
-# OS-specific operations
-ansible-playbook -i hosts.yml maintenance.yml --tags debian    # Debian/Ubuntu only
-ansible-playbook -i hosts.yml maintenance.yml --tags redhat   # RHEL/CentOS only
-
-# Longhorn-specific operations
-ansible-playbook -i hosts.yml maintenance.yml --tags longhorn
-```
-
-### Recovery Operations
-```bash
-# Resume maintenance after reboot failure
-ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags resume
-
-# Manual uncordon after successful maintenance
-ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags uncordon
-
-# Re-enable Longhorn scheduling only
-ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags longhorn
 ```
 
 ## Configuration
 
-### Role Variables
+### Role variables
 
-Customise behaviour through group variables:
+Customise behaviour through group variables.
 
-#### Master Nodes (`group_vars/k3s_masters/main.yml`)
 ```yaml
+# group_vars/k3s_masters/main.yml
 k3s_node_maintenance_drain_timeout: 600
 k3s_node_maintenance_wait_timeout: 1800
 k3s_node_maintenance_skip_drain: true  # Masters are not drained
-```
 
-#### Worker Nodes (`group_vars/k3s_workers/main.yml`)
-```yaml
+# group_vars/k3s_workers/main.yml
 k3s_node_maintenance_drain_timeout: 300
 k3s_node_maintenance_wait_timeout: 600
 k3s_node_maintenance_skip_drain: false
-```
 
-#### OS-Specific Settings
-```yaml
-# Debian/Ubuntu (group_vars/os_debian/main.yml)
+# group_vars/os_debian/main.yml
 k3s_node_maintenance_package_manager: apt
 k3s_node_maintenance_cache_valid_time: 3600
 
-# RHEL/CentOS (group_vars/os_redhat/main.yml)
+# group_vars/os_redhat/main.yml
 k3s_node_maintenance_package_manager: dnf
 k3s_node_maintenance_needs_restarting_available: true
 ```
 
-### Inventory Structure
+### Inventory structure
 
 Define your cluster in `hosts.yml`:
 
@@ -274,107 +187,137 @@ all:
             worker-02:
 ```
 
-## Safety Features
+### Repository contents
 
-### Intelligent Detection
-- **Early Exit**: Automatically skips maintenance when no updates are available
-- **Update Assessment**: Checks for available packages before cluster operations
-- **Resource Preservation**: Prevents unnecessary downtime and resource usage
+| File | Description |
+|------|-------------|
+| `maintenance.yml` | Main playbook using enterprise role architecture |
+| `hosts.yml.example` | Example inventory with group structure |
+| `ansible.cfg` | Ansible configuration |
+| `roles/` | Modular role architecture |
+| `group_vars/` | Node type and OS-specific variables |
+| `requirements.txt` | Python dependencies |
 
-### Health Validation
-- **Pre-flight Checks**: Validates prerequisites and cluster health
-- **Node Readiness**: Ensures nodes are healthy before/after maintenance
-- **Control Plane**: Validates API server and etcd health for masters
-- **Storage Integration**: Checks Longhorn volume health (when available)
-- **Volume Recovery**: Waits for degraded Longhorn volumes to recover before proceeding
+### Tag reference
 
-### Operational Safety
-- **Sequential Processing**: Maintains only one node at a time
-- **Drain Protection**: Workers are properly drained; masters are never drained
-- **Smart Reboot Handling**: Adaptive monitoring that waits for actual state changes
-- **Rollback Support**: Stops on first failure to prevent cascade issues
-
-## Troubleshooting
-
-### Check Maintenance Status
-```bash
-# Verify what updates are available
-ansible all -i hosts.yml -m package_facts
-
-# Check cluster health
-kubectl get nodes
-kubectl get pods --all-namespaces
-
-# Verify Longhorn status (if applicable)
-kubectl get pods -n longhorn-system
-```
-
-### Common Issues
-
-#### "No updates needed"
-This is normal behaviour - the role intelligently skips maintenance when no packages need updating.
-
-#### Node not ready after maintenance
-```bash
-# Check node status
-kubectl get nodes
-
-# Manual uncordon if needed
-kubectl uncordon <node-name>
-```
-
-#### Ansible connection issues
-```bash
-# Test connectivity
-ansible all -i hosts.yml -m ping
-
-# Check SSH access
-ssh user@node-ip
-```
-
-### Debug Mode
-```bash
-# Run with maximum verbosity
-ansible-playbook -i hosts.yml maintenance.yml -vvv
-
-# List all available tags
-ansible-playbook -i hosts.yml maintenance.yml --list-tags
-
-# Check specific task without running
-ansible-playbook -i hosts.yml maintenance.yml --tags check_updates --check
-
-# Resume from specific point
-ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags resume
-```
-
-## Tag Reference
-
-| Tag | Description | Use Case |
+| Tag | Description | Use case |
 |-----|-------------|----------|
 | `prerequisites` | Pre-flight checks | Validate environment setup |
 | `check_updates` | Package update detection | See what updates are available |
-| `prepare` | Cluster preparation | Cordon/drain nodes only |
+| `prepare` | Cluster preparation | Cordon and drain nodes only |
 | `packages` | All package operations | Package management only |
 | `updates` | Package installation | Install updates only |
 | `reboot` | Reboot coordination | Reboot handling only |
 | `restore` | Cluster restoration | Uncordon and restore scheduling |
-| `resume` | Manual recovery | Resume after failures (includes restore) |
+| `resume` | Manual recovery | Resume after failures including restore |
 | `uncordon` | Node uncordoning | Restore node scheduling only |
-| `debian` | Debian/Ubuntu only | OS-specific operations |
-| `redhat` | RHEL/CentOS only | OS-specific operations |
+| `debian` | Debian or Ubuntu only | OS-specific operations |
+| `redhat` | RHEL or CentOS only | OS-specific operations |
 | `longhorn` | Longhorn operations | Storage-specific tasks |
 
-## License
+## Health
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- Pre-flight validation of cluster prerequisites and connectivity
+- Node readiness checks before and after maintenance
+- Control plane validation for API server and etcd on masters
+- Longhorn volume health checks and recovery waits when available
+
+## Endpoint
+
+This project is an Ansible automation, not a network service.
+
+- Primary entry point: `maintenance.yml`
+- Invoke with `ansible-playbook -i hosts.yml maintenance.yml` and the tags or limits that fit your scenario
+
+## Production notes
+
+- Process nodes sequentially to preserve availability
+- Keep timeouts conservative to match your node boot and image pull times
+- Use `check_updates` to avoid unnecessary work when no updates are available
+- When using Longhorn, allow time for degraded volumes to become healthy before proceeding
+- Keep `k3s_node_maintenance_skip_drain` set appropriately for masters to protect quorum
+
+## Development
+
+```bash
+# 1) Clone
+git clone https://github.com/sudo-kraken/k3s-cluster-maintenance.git
+cd k3s-cluster-maintenance
+
+# 2) Install Python deps
+pip install -r requirements.txt
+
+# 3) Install Ansible collections
+ansible-galaxy collection install kubernetes.core
+# or from the file if present
+ansible-galaxy collection install -r collections/requirements.yml
+
+# 4) Configure inventory
+cp hosts.yml.example hosts.yml
+# edit hosts.yml with your cluster details
+
+# 5) Test connectivity
+ansible all -i hosts.yml -m ping
+```
+
+## Troubleshooting
+
+- Verify available updates
+  ```bash
+  ansible all -i hosts.yml -m package_facts
+  ```
+- Check cluster health
+  ```bash
+  kubectl get nodes
+  kubectl get pods --all-namespaces
+  ```
+- Verify Longhorn status if applicable
+  ```bash
+  kubectl get pods -n longhorn-system
+  ```
+
+Common issues
+
+- No updates needed  
+  Normal behaviour. The role skips maintenance when no packages need updating.
+
+- Node not ready after maintenance
+  ```bash
+  kubectl get nodes
+  kubectl uncordon <node-name>
+  ```
+
+- Ansible connection issues
+  ```bash
+  ansible all -i hosts.yml -m ping
+  ssh user@node-ip
+  ```
+
+Debug mode
+
+```bash
+ansible-playbook -i hosts.yml maintenance.yml -vvv
+ansible-playbook -i hosts.yml maintenance.yml --list-tags
+ansible-playbook -i hosts.yml maintenance.yml --tags check_updates --check
+ansible-playbook -i hosts.yml maintenance.yml --limit node-01 --tags resume
+```
+
+## Licence
+
+This project is licensed under the MIT Licence. See the [LICENCE](LICENCE) file for details.
+
+## Security
+
+If you discover a security issue, please review and follow the guidance in [SECURITY.md](SECURITY.md) if present, or open a private security-focused issue with minimal details and request a secure contact channel.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Feel free to open issues or submit pull requests if you have suggestions or improvements.
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Support
+
+Open an [issue](/../../issues) with as much detail as possible, including your Ansible version, distribution details and relevant playbook output.
 
 ## Disclaimer
 
@@ -384,8 +327,4 @@ This tool performs maintenance operations on your Kubernetes cluster. Always:
 - Review the role tasks before deployment
 - Monitor the process during execution
 
-Use at your own risk. The authors are not responsible for any damage or data loss.
-
----
-
-**Enterprise-grade K3s maintenance made simple**
+Use at your own risk. I am not responsible for any damage or data loss.
