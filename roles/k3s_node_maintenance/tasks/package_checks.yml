@@ -1,48 +1,147 @@
 ---
 # Check for available package updates and determine if maintenance is needed
+- name: Refresh apt package metadata
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ k3s_node_maintenance_apt_cache_valid_time }}"
+  register: k3s_node_maintenance_apt_cache_update
+  until: k3s_node_maintenance_apt_cache_update is succeeded
+  retries: "{{ k3s_node_maintenance_update_cache_retries | default(3) | int }}"
+  delay: "{{ k3s_node_maintenance_update_cache_delay | default(10) | int }}"
+  when: ansible_facts['os_family'] == 'Debian'
+  tags: [packages, check_updates, debian]
+
 - name: Check for available package updates (apt)
   become: true
-  ansible.builtin.shell: |
-    set -o pipefail
-    apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+  ansible.builtin.command:
+    argv:
+      - apt
+      - list
+      - --upgradable
   register: k3s_node_maintenance_apt_updates_available
   when: ansible_facts['os_family'] == 'Debian'
   changed_when: false
+  check_mode: false
+  environment:
+    LC_ALL: C
   tags: [packages, check_updates, debian]
 
 - name: Check for available package updates (dnf)
   become: true
   ansible.builtin.dnf:
     list: updates
+    update_cache: true
   register: k3s_node_maintenance_dnf_updates_available
+  until: k3s_node_maintenance_dnf_updates_available is succeeded
+  retries: "{{ k3s_node_maintenance_update_cache_retries | default(3) | int }}"
+  delay: "{{ k3s_node_maintenance_update_cache_delay | default(10) | int }}"
   when: ansible_facts['os_family'] == 'RedHat'
   tags: [packages, check_updates, redhat]
 
+- name: Check for a pending Debian reboot
+  become: true
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: k3s_node_maintenance_pending_apt_reboot
+  when: ansible_facts['os_family'] == 'Debian'
+  tags: [packages, check_updates, debian, reboot, reboot_check]
+
+- name: Check for a pending RedHat reboot
+  become: true
+  ansible.builtin.command:
+    argv:
+      - needs-restarting
+      - -r
+  register: k3s_node_maintenance_pending_dnf_reboot
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: ansible_facts['os_family'] == 'RedHat'
+  tags: [packages, check_updates, redhat, reboot, reboot_check]
+
+- name: Determine pending reboot state
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_pending_reboot: >-
+      {{
+        (
+          ansible_facts['os_family'] == 'Debian'
+          and k3s_node_maintenance_pending_apt_reboot.stat.exists
+        )
+        or (
+          ansible_facts['os_family'] == 'RedHat'
+          and k3s_node_maintenance_pending_dnf_reboot.rc == 1
+        )
+      }}
+    k3s_node_maintenance_reboot_required: >-
+      {{
+        (
+          ansible_facts['os_family'] == 'Debian'
+          and k3s_node_maintenance_pending_apt_reboot.stat.exists
+        )
+        or (
+          ansible_facts['os_family'] == 'RedHat'
+          and k3s_node_maintenance_pending_dnf_reboot.rc == 1
+        )
+      }}
+  tags: [packages, check_updates, reboot, reboot_check]
+
 - name: Determine if maintenance is needed
   ansible.builtin.set_fact:
-    k3s_node_maintenance_packages_need_update: >-
-      {{
-        (ansible_facts['os_family'] == 'Debian' and (k3s_node_maintenance_apt_updates_available.stdout | int) > 0) or
-        (ansible_facts['os_family'] == 'RedHat' and (k3s_node_maintenance_dnf_updates_available.results | length) > 0)
-      }}
     k3s_node_maintenance_update_count: >-
       {{
-        (k3s_node_maintenance_apt_updates_available.stdout | int) if ansible_facts['os_family'] == 'Debian'
+        (
+          k3s_node_maintenance_apt_updates_available.stdout_lines
+          | reject('match', '^Listing')
+          | reject('equalto', '')
+          | list
+          | length
+        )
+        if ansible_facts['os_family'] == 'Debian'
         else (k3s_node_maintenance_dnf_updates_available.results | length)
+      }}
+    k3s_node_maintenance_packages_need_update: >-
+      {{
+        (
+          ansible_facts['os_family'] == 'Debian'
+          and (
+            k3s_node_maintenance_apt_updates_available.stdout_lines
+            | reject('match', '^Listing')
+            | reject('equalto', '')
+            | list
+            | length
+          ) > 0
+        ) or
+        (ansible_facts['os_family'] == 'RedHat' and (k3s_node_maintenance_dnf_updates_available.results | length) > 0)
+      }}
+  tags: [packages, check_updates]
+
+- name: Determine whether maintenance should continue
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_should_run: >-
+      {{
+        (k3s_node_maintenance_packages_need_update | bool)
+        or (k3s_node_maintenance_pending_reboot | bool)
+        or (k3s_node_maintenance_force_maintenance | bool)
+        or not (k3s_node_maintenance_skip_if_no_updates | bool)
       }}
   tags: [packages, check_updates]
 
 - name: Package update status
   ansible.builtin.debug:
     msg: |
-      {% if k3s_node_maintenance_packages_need_update -%}
-      📦 {{ k3s_node_maintenance_update_count }} package updates available - proceeding with maintenance
+      {% if k3s_node_maintenance_packages_need_update | bool -%}
+      {{ k3s_node_maintenance_update_count }} package updates available - proceeding with maintenance
+      {% elif k3s_node_maintenance_pending_reboot | bool -%}
+      A reboot is already pending - proceeding with maintenance
+      {% elif k3s_node_maintenance_should_run | bool -%}
+      No package updates detected - proceeding because skip-if-current is disabled or maintenance is forced
       {% else -%}
-      ✅ No updates available - skipping maintenance
+      No package updates detected - skipping this node
       {% endif %}
   tags: [packages, check_updates]
 
-- name: End play if no updates needed
-  ansible.builtin.meta: end_play
-  when: not k3s_node_maintenance_packages_need_update
+- name: End maintenance for a current node with no pending reboot
+  ansible.builtin.meta: end_host
+  when: not (k3s_node_maintenance_should_run | bool)
   tags: [packages, check_updates]

@@ -36,3 +36,28 @@ project's [pull request template](.github/PULL_REQUEST_TEMPLATE.md).
 We usually squash all PRs commits on merge, and use the PR title as the commit
 message. Therefore, the PR title should follow the
 [Conventional Commits](https://www.conventionalcommits.org/) specification as well.
+
+## Development setup
+
+Install the locked Python environment and the required Ansible collection:
+
+```bash
+uv sync --locked --extra ansible
+uv run ansible-galaxy collection install -r collections/requirements.yml
+cp hosts.example.yml hosts.yml
+```
+
+Review the example inventory before using it. Never commit local inventories,
+private keys, kubeconfigs or vault passwords.
+
+## Validation
+
+Run these checks before opening a pull request:
+
+```bash
+uv run python -m unittest discover -s tests -v
+uv run ansible-inventory -i hosts.example.yml --list >/dev/null
+uv run ansible-playbook -i hosts.example.yml maintenance.yml --syntax-check
+uv run ansible-lint maintenance.yml roles/
+bash -n install-collections.sh
+```

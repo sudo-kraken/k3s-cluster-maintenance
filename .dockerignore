@@ -1,0 +1,25 @@
+.git
+.venv
+__pycache__
+
+# Local inventories, credentials and environment files
+hosts.yml
+inventory.yml
+hosts.ini
+inventory.ini
+host_vars
+*.key
+*.pem
+*.p12
+*.vault
+vault.yml
+.env
+.env.*
+keys
+ssh_keys
+
+# Local output
+*.log
+*.retry
+test-results
+coverage

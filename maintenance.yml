@@ -2,5 +2,7 @@
 - name: K3s Cluster Node Maintenance
   hosts: "{{ target | default('k3s_cluster') }}"
   gather_facts: false
+  serial: 1
+  any_errors_fatal: true
   roles:
     - k3s_node_maintenance

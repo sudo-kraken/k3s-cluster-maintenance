@@ -5,9 +5,18 @@ name: Ansible Lint
 on:
   push:
     paths:
-      - ansible/**
+      - maintenance.yml
+      - roles/**
+      - group_vars/**
+      - collections/**
+      - hosts.example.yml
+      - ansible.cfg
+      - install-collections.sh
+      - tests/**
       - pyproject.toml
+      - uv.lock
       - .github/workflows/ansible-lint.yml
+      - .github/workflows/release.yml
   pull_request:
   workflow_dispatch:
 
@@ -39,7 +48,21 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install the project
-        run: uv sync --extra ansible --prerelease=allow
+        run: uv sync --locked --extra ansible
+
+      - name: Install Ansible collections
+        run: uv run ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Validate inventory and playbook syntax
+        run: |
+          uv run ansible-inventory -i hosts.example.yml --list >/dev/null
+          uv run ansible-playbook -i hosts.example.yml maintenance.yml --syntax-check
+
+      - name: Test repository safety contracts
+        run: uv run python -m unittest discover -s tests -v
+
+      - name: Validate installer shell syntax
+        run: bash -n install-collections.sh
 
       - name: Lint Ansible playbooks and roles
         run: |

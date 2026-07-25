@@ -1,8 +1,4 @@
 ---
-# Variables specific to K3s master nodes
-k3s_node_maintenance_node_type: "master"
-k3s_node_maintenance_critical_node: true
-
 # Masters require more careful handling
 k3s_node_maintenance_drain_timeout: 600  # Longer timeout for masters
 k3s_node_maintenance_wait_timeout: 900   # Extended wait for cluster stability

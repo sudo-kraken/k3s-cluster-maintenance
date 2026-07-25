@@ -1,17 +1,31 @@
 ---
 # RedHat/CentOS package updates
+- name: List upgradable packages
+  become: true
+  ansible.builtin.dnf:
+    list: updates
+    update_cache: true
+  register: k3s_node_maintenance_dnf_upgrade_candidates
+  until: k3s_node_maintenance_dnf_upgrade_candidates is succeeded
+  retries: "{{ k3s_node_maintenance_update_cache_retries | default(3) | int }}"
+  delay: "{{ k3s_node_maintenance_update_cache_delay | default(10) | int }}"
+  tags: [packages, updates, redhat, list]
+
 - name: Parse package list
   ansible.builtin.set_fact:
     k3s_node_maintenance_dnf_packages_to_upgrade: >-
-      {{ k3s_node_maintenance_dnf_updates_available.results | map(attribute='name') | list }}
-  when: k3s_node_maintenance_dnf_updates_available.results | length > 0
+      {{
+        k3s_node_maintenance_dnf_upgrade_candidates.results
+        | map(attribute='name')
+        | list
+      }}
   tags: [packages, updates, redhat, parse]
 
 - name: "Upgrading packages: {{ k3s_node_maintenance_dnf_packages_to_upgrade | length }}"
   become: true
   ansible.builtin.dnf:
     name: "*"
-    state: present
+    state: latest
     update_only: true
     update_cache: true
   register: k3s_node_maintenance_dnf_upgrade_result
@@ -20,27 +34,34 @@
     - k3s_node_maintenance_dnf_packages_to_upgrade | length > 0
   tags: [packages, updates, redhat, upgrade]
 
-- name: Check reboot requirement
+- name: Check reboot requirement with needs-restarting
   become: true
-  ansible.builtin.shell: |
-    set -o pipefail
-    if command -v needs-restarting >/dev/null 2>&1; then
-        needs-restarting -r >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo "No"
-        else
-            echo "Yes"
-        fi
-    else
-        if [ "{{ k3s_node_maintenance_dnf_upgrade_result.changed | default(false) }}" = "True" ]; then
-            echo "{{ k3s_node_maintenance_dnf_packages_to_upgrade | default([]) | join(' ') }}" | \
-              grep -q -E "(kernel|systemd|linux-firmware|glibc)" && echo "Yes" || echo "No"
-        else
-            echo "No"
-        fi
-    fi
-  register: k3s_node_maintenance_dnf_reboot_required
+  ansible.builtin.command:
+    argv:
+      - needs-restarting
+      - -r
+  register: k3s_node_maintenance_needs_restarting_result
   changed_when: false
+  failed_when: false
   check_mode: false
   when: ansible_facts['os_family'] == 'RedHat'
+  tags: [packages, updates, redhat, reboot_check]
+
+- name: Determine RedHat reboot requirement
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_dnf_reboot_required: >-
+      {{
+        k3s_node_maintenance_needs_restarting_result.rc == 1
+        or (
+          k3s_node_maintenance_needs_restarting_result.rc not in [0, 1]
+          and (k3s_node_maintenance_dnf_upgrade_result.changed | default(false) | bool)
+          and (
+            k3s_node_maintenance_dnf_packages_to_upgrade
+            | default([])
+            | select('match', '^(kernel|systemd|linux-firmware|glibc)(-|$)')
+            | list
+            | length > 0
+          )
+        )
+      }}
   tags: [packages, updates, redhat, reboot_check]

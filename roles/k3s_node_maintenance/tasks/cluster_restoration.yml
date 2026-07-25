@@ -1,75 +1,149 @@
 ---
-# Cluster restoration tasks - uncordoning and re-enabling Longhorn
-- name: "Uncordoning node: {{ inventory_hostname }}"
+# Cluster restoration tasks - restore only state changed by this role
+- name: Wait for node readiness before restoration
   delegate_to: localhost
-  kubernetes.core.k8s:
+  kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
-    name: "{{ inventory_hostname }}"
-    state: present
-    merge_type: strategic-merge
-    definition:
-      spec:
-        unschedulable: false
-  tags: [restore, uncordon, resume]
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: "{{ k3s_node_maintenance_wait_timeout }}"
+  tags: [cluster, restore, uncordon, resume]
 
-- name: Longhorn node check
+- name: Determine requested restoration behavior
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_explicit_restore_requested: >-
+      {{
+        'restore' in ansible_run_tags
+        or 'uncordon' in ansible_run_tags
+        or (
+          k3s_node_maintenance_resume_requested | default(false) | bool
+          and k3s_node_maintenance_resume_restore_scheduling | bool
+        )
+      }}
+    k3s_node_maintenance_should_uncordon: >-
+      {{
+        (k3s_node_maintenance_node_drain_changed_scheduling | default(false) | bool)
+        or 'restore' in ansible_run_tags
+        or 'uncordon' in ansible_run_tags
+        or (
+          k3s_node_maintenance_resume_requested | default(false) | bool
+          and k3s_node_maintenance_resume_restore_scheduling | bool
+        )
+      }}
+  tags: [cluster, restore, uncordon, resume]
+
+- name: "Uncordon node: {{ k3s_node_maintenance_kubernetes_node_name }}"
+  delegate_to: localhost
+  kubernetes.core.k8s_drain:
+    state: uncordon
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+  when: k3s_node_maintenance_should_uncordon | bool
+  tags: [cluster, restore, uncordon, resume]
+
+- name: Check for Longhorn namespace during restoration
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: longhorn-system
+  register: k3s_node_maintenance_restore_longhorn_namespace
+  when: k3s_node_maintenance_longhorn_enabled | bool
+  tags: [cluster, restore, longhorn, resume]
+
+- name: Check Longhorn node during restoration
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: longhorn.io/v1beta2
     kind: Node
-    name: "{{ inventory_hostname }}"
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
     namespace: longhorn-system
   register: k3s_node_maintenance_longhorn_node_info
-  tags: [restore, longhorn, resume]
+  when:
+    - k3s_node_maintenance_longhorn_enabled | bool
+    - k3s_node_maintenance_restore_longhorn_namespace.resources | default([]) | length > 0
+  tags: [cluster, restore, longhorn, resume]
 
-- name: Set Longhorn scheduling facts
+- name: Set Longhorn restoration facts
   ansible.builtin.set_fact:
-    k3s_node_maintenance_longhorn_node_exists: "{{ k3s_node_maintenance_longhorn_node_info.resources | length > 0 }}"
+    k3s_node_maintenance_restore_longhorn_node_exists: >-
+      {{ k3s_node_maintenance_longhorn_node_info.resources | default([]) | length > 0 }}
     k3s_node_maintenance_longhorn_scheduling_disabled: >-
-      {{ k3s_node_maintenance_longhorn_node_info.resources | length > 0 and
-      k3s_node_maintenance_longhorn_node_info.resources[0].spec.allowScheduling == false }}
-  tags: [restore, longhorn, resume]
+      {{
+        k3s_node_maintenance_longhorn_node_info.resources | default([]) | length > 0
+        and not (
+          k3s_node_maintenance_longhorn_node_info.resources[0].spec.allowScheduling
+          | default(false)
+          | bool
+        )
+      }}
+  tags: [cluster, restore, longhorn, resume]
 
-- name: Re-enabling Longhorn scheduling
+- name: Re-enable Longhorn scheduling
   delegate_to: localhost
   kubernetes.core.k8s:
     api_version: longhorn.io/v1beta2
     kind: Node
-    name: "{{ inventory_hostname }}"
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
     namespace: longhorn-system
     state: present
     merge_type: merge
     definition:
       spec:
         allowScheduling: true
-  when: k3s_node_maintenance_longhorn_node_exists and k3s_node_maintenance_longhorn_scheduling_disabled
-  tags: [restore, longhorn, resume]
+  register: k3s_node_maintenance_longhorn_scheduling_restore
+  when:
+    - k3s_node_maintenance_restore_longhorn_node_exists | bool
+    - k3s_node_maintenance_longhorn_scheduling_disabled | bool
+    - >-
+      (k3s_node_maintenance_longhorn_scheduling_changed | default(false) | bool)
+      or (k3s_node_maintenance_explicit_restore_requested | bool)
+  tags: [cluster, restore, longhorn, resume]
 
-- name: Longhorn pod readiness
+- name: Wait for Longhorn pods on restored node
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Pod
     field_selectors:
-      - spec.nodeName={{ inventory_hostname }}
+      - spec.nodeName={{ k3s_node_maintenance_kubernetes_node_name }}
     namespace: longhorn-system
     wait: true
     wait_condition:
       type: Ready
       status: "True"
     wait_timeout: 120
-  when: k3s_node_maintenance_longhorn_node_exists and k3s_node_maintenance_longhorn_scheduling_disabled
-  register: k3s_node_maintenance_longhorn_pod_wait
-  ignore_errors: true
-  tags: [restore, longhorn, resume]
+  when:
+    - k3s_node_maintenance_restore_longhorn_node_exists | bool
+    - k3s_node_maintenance_longhorn_scheduling_disabled | bool
+    - >-
+      (k3s_node_maintenance_longhorn_scheduling_changed | default(false) | bool)
+      or (k3s_node_maintenance_explicit_restore_requested | bool)
+  tags: [cluster, restore, longhorn, resume]
 
-- name: "Restoration complete for: {{ inventory_hostname }}"
+- name: Get restored node state
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
-    name: "{{ inventory_hostname }}"
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
   register: k3s_node_maintenance_final_node_info
-  failed_when: k3s_node_maintenance_final_node_info.resources[0].spec.unschedulable | default(false)
-  tags: [restore, verify, resume]
+  tags: [cluster, restore, verify, resume]
+
+- name: Validate node restoration
+  ansible.builtin.assert:
+    that:
+      - k3s_node_maintenance_final_node_info.resources | length == 1
+      - >-
+        not (k3s_node_maintenance_should_uncordon | bool)
+        or not (
+          k3s_node_maintenance_final_node_info.resources[0].spec.unschedulable
+          | default(false)
+          | bool
+        )
+    fail_msg: >-
+      Node {{ k3s_node_maintenance_kubernetes_node_name }} was not restored to its expected scheduling state.
+  tags: [cluster, restore, verify, resume]
