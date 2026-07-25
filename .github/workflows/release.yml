@@ -15,8 +15,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-tag:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Require a semantic version tag
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must be a semantic version such as v1.2.3" >&2
+            exit 1
+          fi
+
+          MANIFEST_VERSION=$(python3 -c \
+            'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')
+          if [[ "${VERSION}" != "v${MANIFEST_VERSION}" ]]; then
+            echo "Tag ${VERSION} does not match pyproject.toml version ${MANIFEST_VERSION}" >&2
+            exit 1
+          fi
+
   changelog:
     name: Generate changelog
+    needs: validate-tag
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -39,10 +65,18 @@ jobs:
           OUTPUT: CHANGELOG.md
           GITHUB_REPO: ${{ github.repository }}
 
+      - name: Upload generated changelog
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-changelog-${{ github.ref_name }}
+          path: CHANGELOG.md
+          if-no-files-found: error
+          retention-days: 1
+
   create-draft-release:
     name: Create draft release
     runs-on: ubuntu-24.04
-    needs: changelog
+    needs: [changelog, verify]
     permissions:
       contents: write
     steps:
@@ -52,13 +86,18 @@ jobs:
           persist-credentials: false
 
       - name: Draft Release
-        run: gh release create ${GITHUB_REF_NAME} -t "Release ${GITHUB_REF_NAME}" -n "${RELEASE_BODY}" --draft
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          --title "Release ${GITHUB_REF_NAME}"
+          --notes "${RELEASE_BODY}"
+          --draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_BODY: ${{ needs.changelog.outputs.release_body }}
 
   prepare-artifacts:
     name: Prepare release artifacts
+    needs: [validate-tag, changelog]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -69,6 +108,12 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
+
+      - name: Download generated changelog
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: release-changelog-${{ github.ref_name }}
+          path: .
 
       - name: Create release archive
         run: |
@@ -81,8 +126,9 @@ jobs:
             collections/ \
             ansible.cfg \
             maintenance.yml \
-            hosts.yml.example \
-            requirements.txt \
+            hosts.example.yml \
+            pyproject.toml \
+            uv.lock \
             install-collections.sh \
             .python-version \
             CHANGELOG.md \
@@ -137,7 +183,12 @@ jobs:
 
       - name: Generate SBOM with Trivy
         run: |
-          trivy fs --format cyclonedx --output k3s-cluster-maintenance-${{ env.VERSION }}.sbom .
+          mkdir sbom-root
+          tar -xzf "release/k3s-cluster-maintenance-${VERSION}.tar.gz" -C sbom-root
+          trivy fs \
+            --format cyclonedx \
+            --output "k3s-cluster-maintenance-${VERSION}.sbom" \
+            sbom-root
 
       - name: Sign release artifacts
         run: |
@@ -152,9 +203,9 @@ jobs:
           cosign attest-blob -y \
             --type cyclonedx \
             --new-bundle-format \
-            --predicate k3s-cluster-maintenance-${{ env.VERSION }}.sbom \
-            --bundle k3s-cluster-maintenance-${{ env.VERSION }}.sbom.bundle \
-            release/k3s-cluster-maintenance-${{ env.VERSION }}.tar.gz
+            --predicate "k3s-cluster-maintenance-${VERSION}.sbom" \
+            --bundle "k3s-cluster-maintenance-${VERSION}.sbom.bundle" \
+            "release/k3s-cluster-maintenance-${VERSION}.tar.gz"
 
       - name: Upload signed artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -237,14 +288,15 @@ jobs:
 
       - name: Upload artifacts to release
         run: |
-          gh release upload "${{ env.VERSION }}" release/* --repo "${{ github.repository }}"
-          gh release upload "${{ env.VERSION }}" signed/*.sbom signed/*.bundle --repo "${{ github.repository }}"
+          gh release upload "${VERSION}" release/* --repo "${{ github.repository }}"
+          gh release upload "${VERSION}" signed/*.sbom signed/*.bundle signed/release/*.bundle \
+            --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish release
         run: |
-          gh release edit "${{ env.VERSION }}" --draft=false --repo "${{ github.repository }}"
+          gh release edit "${VERSION}" --draft=false --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

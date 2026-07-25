@@ -11,10 +11,16 @@ inventory.ini
 *.p12
 keys/
 ssh_keys/
+id_rsa
+id_ed25519
+kubeconfig
+*.kubeconfig
 
 # Ansible vault files
 *.vault
 vault.yml
+.vault_pass
+vault-password*
 
 # Role-specific sensitive files
 group_vars/*/secrets.yml
@@ -53,6 +59,8 @@ local.yml
 local.config
 .env
 .env.local
+.env.*
+!.env.example
 
 # Backup files
 *.bak
@@ -70,6 +78,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 .pytest_cache/
 
 # CI/CD artifacts

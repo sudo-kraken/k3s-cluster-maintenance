@@ -35,9 +35,14 @@
           {%- endfor -%}
           {{- ready_count.value -}}
         k3s_node_maintenance_total_nodes: "{{ k3s_node_maintenance_all_nodes.resources | length }}"
-        k3s_node_maintenance_schedulable_nodes: >-
-          {{ k3s_node_maintenance_all_nodes.resources |
-          rejectattr('spec.unschedulable', 'defined') | list | length }}
+        k3s_node_maintenance_schedulable_nodes: |
+          {%- set schedulable_count = namespace(value=0) -%}
+          {%- for node in k3s_node_maintenance_all_nodes.resources -%}
+            {%- if not (node.spec.unschedulable | default(false) | bool) -%}
+              {%- set schedulable_count.value = schedulable_count.value + 1 -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{- schedulable_count.value -}}
 
     - name: Validate cluster health
       ansible.builtin.assert:
@@ -46,4 +51,5 @@
           - k3s_node_maintenance_schedulable_nodes | int >= (k3s_node_maintenance_total_nodes | int - 1)
         fail_msg: >-
           Cluster validation failed - Ready: {{ k3s_node_maintenance_ready_nodes }}/{{ k3s_node_maintenance_total_nodes }}
-        success_msg: "Maintenance complete - {{ inventory_hostname }} updated successfully"
+        success_msg: >-
+          Maintenance complete - {{ k3s_node_maintenance_kubernetes_node_name }} updated successfully

@@ -7,22 +7,31 @@
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
-    name: "{{ inventory_hostname }}"
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
   register: k3s_node_maintenance_node_status_info
+  tags: [resume, status]
+
+- name: Validate Kubernetes node mapping
+  ansible.builtin.assert:
+    that:
+      - k3s_node_maintenance_node_status_info.resources | length == 1
+    fail_msg: >-
+      Inventory host {{ inventory_hostname }} does not map to Kubernetes node
+      {{ k3s_node_maintenance_kubernetes_node_name }}.
   tags: [resume, status]
 
 - name: Set node ready status fact
   ansible.builtin.set_fact:
-    k3s_node_maintenance_node_is_ready: |
-      {%- set ready = false -%}
-      {%- if k3s_node_maintenance_node_status_info.resources[0].status.conditions is defined -%}
-        {%- for condition in k3s_node_maintenance_node_status_info.resources[0].status.conditions -%}
-          {%- if condition.type == "Ready" and condition.status == "True" -%}
-            {%- set ready = true -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {{ ready }}
+    k3s_node_maintenance_node_is_ready: >-
+      {{
+        k3s_node_maintenance_node_status_info.resources[0].status.conditions
+        | default([])
+        | selectattr('type', 'equalto', 'Ready')
+        | selectattr('status', 'equalto', 'True')
+        | list
+        | length > 0
+      }}
+    k3s_node_maintenance_resume_requested: true
   tags: [resume, status]
 
 - name: Wait for node to become Ready (if not already)
@@ -30,7 +39,7 @@
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
-    name: "{{ inventory_hostname }}"
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
     wait: true
     wait_condition:
       type: Ready

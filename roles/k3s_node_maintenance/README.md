@@ -1,40 +1,41 @@
 # K3s Node Maintenance Role
 
-This role provides automated OS patching and maintenance for K3s cluster nodes with zero-downtime operations.
+This role provides safe, sequential OS patching and maintenance for K3s cluster nodes.
 
 ## Role Variables
 
 ### Default Variables (`defaults/main.yml`)
-- `k3s_node_maintenance_wait_timeout`: Maximum time to wait for drain operations (default: 600s)
+- `k3s_node_maintenance_wait_timeout`: Maximum time to wait for node readiness (default: 600s)
 - `k3s_node_maintenance_drain_timeout`: Timeout for node draining (default: 300s)
 - `k3s_node_maintenance_drain_grace_period`: Grace period for pod termination (default: 30s)
+- `k3s_node_maintenance_drain_force`: Drain pods without a controller (default: false)
+- `k3s_node_maintenance_drain_delete_emptydir_data`: Permit deletion of `emptyDir` data (default: false)
 - `k3s_node_maintenance_reboot_pause`: Initial pause after reboot initiation (default: 30s)
 - `k3s_node_maintenance_apt_cache_valid_time`: APT cache validity time (default: 3600s)
-- `k3s_node_maintenance_node_type`: Node type - "master" or "worker" (default: "worker")
-- `k3s_node_maintenance_critical_node`: Whether node is critical (default: false)
+- `k3s_node_maintenance_kubernetes_node_name`: Kubernetes Node name (default: inventory hostname)
+- `k3s_node_maintenance_skip_if_no_updates`: Skip a current node without ending the play (default: true)
+- `k3s_node_maintenance_force_maintenance`: Continue even when no updates are detected (default: false)
+- `k3s_node_maintenance_skip_drain`: Skip cordon and drain operations (default: false)
 - `k3s_node_maintenance_longhorn_enabled`: Enable Longhorn checks (default: true)
+- `k3s_node_maintenance_resume_restore_scheduling`: Restore scheduling during a fresh resume run (default: false)
 
-**Note**: Reboot handling uses adaptive monitoring without timeouts, waiting for actual node state changes.
+The role preserves a node's pre-existing cordon state and a Longhorn node's pre-existing scheduling state.
 
 ### Group Variables
 
 #### `group_vars/k3s_masters/main.yml`
 - Extended timeouts for master nodes
-- Critical node handling enabled
 - Conservative reboot behaviour
 
 #### `group_vars/k3s_workers/main.yml`
 - Standard timeouts for worker nodes
-- Non-critical node handling
 - Standard reboot behaviour
 
 #### `group_vars/os_debian/main.yml`
-- APT package manager configuration
-- Debian-specific settings
+- APT cache lifetime and metadata-refresh retry settings
 
 #### `group_vars/os_redhat/main.yml`
-- DNF package manager configuration
-- RedHat-specific settings
+- DNF metadata-refresh retry settings
 
 ## Task Structure
 
@@ -44,7 +45,7 @@ The role is organised into logical task files:
 - `tasks/prerequisites.yml`: Pre-flight checks
 - `tasks/package_checks.yml`: Update detection and early exit
 - `tasks/longhorn_validation.yml`: Longhorn storage health checks and volume recovery
-- `tasks/cluster_preparation.yml`: Node cordoning and draining
+- `tasks/cluster_preparation.yml`: PDB-aware node cordoning and draining
 - `tasks/package_updates.yml`: OS-specific update inclusion
 - `tasks/debian_updates.yml`: Debian/Ubuntu package updates
 - `tasks/redhat_updates.yml`: RHEL/CentOS package updates
@@ -88,12 +89,16 @@ ansible-playbook -i hosts.yml maintenance.yml --tags check_updates
 ansible-playbook -i hosts.yml maintenance.yml --tags prepare
 
 # Resume after manual reboot
-ansible-playbook -i hosts.yml maintenance.yml --tags resume
+ansible-playbook -i hosts.yml maintenance.yml --tags resume \
+  -e k3s_node_maintenance_resume_restore_scheduling=true
 ```
 
 ## Dependencies
 
-None. This is a standalone role.
+- Ansible Core 2.19.3 or newer
+- `kubernetes.core` collection
+- Python Kubernetes client on the controller
+- Python 3.9 or newer on managed nodes
 
 ## Example Playbook
 
@@ -102,6 +107,8 @@ None. This is a standalone role.
 - name: K3s Cluster Node Maintenance
   hosts: "{{ target | default('k3s_cluster') }}"
   gather_facts: false
+  serial: 1
+  any_errors_fatal: true
   roles:
     - k3s_node_maintenance
 ```

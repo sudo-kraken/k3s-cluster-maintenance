@@ -8,6 +8,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: devcontainer-smoke-${{ github.ref }}
   cancel-in-progress: true
@@ -16,9 +19,12 @@ jobs:
   smoke:
     name: Smoke Test Dev Container
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
 
       - name: Build devcontainer
         uses: devcontainers/ci@8bf61b26e9c3a98f69cb6ce2f88d24ff59b785c6 # v0.3

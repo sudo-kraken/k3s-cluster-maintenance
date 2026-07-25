@@ -172,6 +172,7 @@
   delegate_to: localhost
   ansible.builtin.assert:
     that:
+      - k3s_node_maintenance_total_managers | int > 0
       - k3s_node_maintenance_running_managers | int == k3s_node_maintenance_total_managers | int
       - k3s_node_maintenance_running_instance_managers | int == k3s_node_maintenance_total_instance_managers | int
       - k3s_node_maintenance_final_degraded_count | int == 0
@@ -182,5 +183,5 @@
     success_msg: >-
       Longhorn system healthy - {{ k3s_node_maintenance_total_volumes_with_state }} volumes present,
       all components ready
-  when: k3s_node_maintenance_longhorn_installed and (k3s_node_maintenance_total_managers | int > 0)
+  when: k3s_node_maintenance_longhorn_installed
   tags: [longhorn, health, validation]

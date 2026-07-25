@@ -21,15 +21,12 @@
       {{
         (ansible_facts['os_family'] == 'Debian'
           and k3s_node_maintenance_apt_upgrade_result is defined
-          and k3s_node_maintenance_apt_upgrade_result.changed
           and k3s_node_maintenance_apt_reboot_required.stat is defined
           and k3s_node_maintenance_apt_reboot_required.stat.exists)
         or
         (ansible_facts['os_family'] == 'RedHat'
           and k3s_node_maintenance_dnf_upgrade_result is defined
-          and k3s_node_maintenance_dnf_upgrade_result.changed
           and k3s_node_maintenance_dnf_reboot_required is defined
-          and k3s_node_maintenance_dnf_reboot_required.stdout is defined
-          and k3s_node_maintenance_dnf_reboot_required.stdout == 'Yes')
+          and (k3s_node_maintenance_dnf_reboot_required | bool))
       }}
   tags: [packages, updates, reboot_check]

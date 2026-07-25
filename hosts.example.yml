@@ -1,11 +1,11 @@
+---
 all:
   vars:
     # SSH connection settings
     ansible_ssh_user: your-ssh-user
     ansible_ssh_private_key_file: /path/to/your/ssh/private/key
-    
-    # Optional: SSH connection options
-    # ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+    # Optional: Explicit Python interpreter
     # ansible_python_interpreter: /usr/bin/python3
 
 # K3s cluster node groups

@@ -1,111 +1,172 @@
 ---
-# Cluster preparation tasks - Longhorn, cordoning, and draining
-- name: Check for Longhorn on this node
+# Cluster preparation tasks - Longhorn scheduling and PDB-aware draining
+- name: Get current Kubernetes node state
   delegate_to: localhost
   kubernetes.core.k8s_info:
     api_version: v1
-    kind: Pod
-    field_selectors:
-      - spec.nodeName={{ inventory_hostname }}
-    namespace: longhorn-system
-  register: k3s_node_maintenance_longhorn_pods_info
+    kind: Node
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+  register: k3s_node_maintenance_initial_node_info
+  tags: [cluster, prepare, drain]
+
+- name: Validate Kubernetes node mapping
+  ansible.builtin.assert:
+    that:
+      - k3s_node_maintenance_initial_node_info.resources | length == 1
+    fail_msg: >-
+      Inventory host {{ inventory_hostname }} does not map to Kubernetes node
+      {{ k3s_node_maintenance_kubernetes_node_name }}.
+  tags: [cluster, prepare, drain]
+
+- name: Capture original scheduling state
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_node_was_unschedulable: >-
+      {{
+        k3s_node_maintenance_initial_node_info.resources[0].spec.unschedulable
+        | default(false)
+        | bool
+      }}
+    k3s_node_maintenance_node_drain_changed_scheduling: false
+    k3s_node_maintenance_drain_attempted: false
+  tags: [cluster, prepare, drain]
+
+- name: Initialise Longhorn scheduling state
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_longhorn_node_exists: false
+    k3s_node_maintenance_longhorn_scheduling_was_allowed: false
+    k3s_node_maintenance_longhorn_scheduling_changed: false
   tags: [cluster, prepare, longhorn]
 
-- name: Disable Longhorn scheduling (if present)
+- name: Check for Longhorn namespace during preparation
   delegate_to: localhost
-  when: (k3s_node_maintenance_longhorn_pods_info.resources | length) > 0
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: longhorn-system
+  register: k3s_node_maintenance_prepare_longhorn_namespace
+  when: k3s_node_maintenance_longhorn_enabled | bool
   tags: [cluster, prepare, longhorn]
-  block:
-    - name: Check Longhorn Node CR
-      kubernetes.core.k8s_info:
-        api_version: longhorn.io/v1beta2
-        kind: Node
-        name: "{{ inventory_hostname }}"
-        namespace: longhorn-system
-      register: k3s_node_maintenance_longhorn_node_check
 
-    - name: Disable scheduling
+- name: Check Longhorn node custom resource
+  delegate_to: localhost
+  kubernetes.core.k8s_info:
+    api_version: longhorn.io/v1beta2
+    kind: Node
+    name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+    namespace: longhorn-system
+  register: k3s_node_maintenance_longhorn_node_check
+  when:
+    - k3s_node_maintenance_longhorn_enabled | bool
+    - k3s_node_maintenance_prepare_longhorn_namespace.resources | default([]) | length > 0
+  tags: [cluster, prepare, longhorn]
+
+- name: Capture original Longhorn scheduling state
+  ansible.builtin.set_fact:
+    k3s_node_maintenance_longhorn_node_exists: >-
+      {{ k3s_node_maintenance_longhorn_node_check.resources | length > 0 }}
+    k3s_node_maintenance_longhorn_scheduling_was_allowed: >-
+      {{
+        k3s_node_maintenance_longhorn_node_check.resources[0].spec.allowScheduling
+        | default(false)
+        | bool
+      }}
+  when:
+    - k3s_node_maintenance_longhorn_node_check is not skipped
+    - k3s_node_maintenance_longhorn_node_check.resources | length > 0
+  tags: [cluster, prepare, longhorn]
+
+- name: Apply reversible node preparation changes
+  block:
+    - name: Disable Longhorn scheduling
+      delegate_to: localhost
       kubernetes.core.k8s:
         api_version: longhorn.io/v1beta2
         kind: Node
-        name: "{{ inventory_hostname }}"
+        name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
         namespace: longhorn-system
         state: present
         merge_type: merge
         definition:
           spec:
             allowScheduling: false
-      when: k3s_node_maintenance_longhorn_node_check.resources | length > 0
+      when: k3s_node_maintenance_longhorn_scheduling_was_allowed | bool
+      tags: [cluster, prepare, longhorn]
 
-    - name: Wait for Longhorn to disable scheduling
-      ansible.builtin.pause:
-        seconds: 15
-      when: k3s_node_maintenance_longhorn_node_check.resources | length > 0
+    - name: Record Longhorn scheduling change
+      ansible.builtin.set_fact:
+        k3s_node_maintenance_longhorn_scheduling_changed: true
+      when: k3s_node_maintenance_longhorn_scheduling_was_allowed | bool
+      tags: [cluster, prepare, longhorn]
 
-- name: Prepare node for maintenance
-  delegate_to: localhost
-  tags: [cluster, prepare, drain]
-  block:
-    - name: Cordon node
+    - name: Record drain attempt
+      ansible.builtin.set_fact:
+        k3s_node_maintenance_drain_attempted: true
+      when: not (k3s_node_maintenance_skip_drain | bool)
+      tags: [cluster, prepare, drain]
+
+    - name: Drain node for maintenance
+      delegate_to: localhost
+      kubernetes.core.k8s_drain:
+        state: drain
+        name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+        delete_options:
+          force: "{{ k3s_node_maintenance_drain_force | bool }}"
+          ignore_daemonsets: true
+          delete_emptydir_data: "{{ k3s_node_maintenance_drain_delete_emptydir_data | bool }}"
+          terminate_grace_period: "{{ k3s_node_maintenance_drain_grace_period | int }}"
+          wait_timeout: "{{ k3s_node_maintenance_drain_timeout | int }}"
+      register: k3s_node_maintenance_drain_result
+      when: not (k3s_node_maintenance_skip_drain | bool)
+      tags: [cluster, prepare, drain]
+
+    - name: Record node scheduling change
+      ansible.builtin.set_fact:
+        k3s_node_maintenance_node_drain_changed_scheduling: >-
+          {{ not (k3s_node_maintenance_node_was_unschedulable | bool) }}
+      when: not (k3s_node_maintenance_skip_drain | bool)
+      tags: [cluster, prepare, drain]
+
+  rescue:
+    - name: Roll back node scheduling after preparation failure
+      delegate_to: localhost
+      kubernetes.core.k8s_drain:
+        state: uncordon
+        name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+      register: k3s_node_maintenance_drain_rollback
+      failed_when: false
+      when:
+        - k3s_node_maintenance_drain_attempted | default(false) | bool
+        - not (k3s_node_maintenance_node_was_unschedulable | bool)
+      tags: [always]
+
+    - name: Roll back Longhorn scheduling after preparation failure
+      delegate_to: localhost
       kubernetes.core.k8s:
-        api_version: v1
+        api_version: longhorn.io/v1beta2
         kind: Node
-        name: "{{ inventory_hostname }}"
+        name: "{{ k3s_node_maintenance_kubernetes_node_name }}"
+        namespace: longhorn-system
         state: present
-        merge_type: strategic-merge
+        merge_type: merge
         definition:
           spec:
-            unschedulable: true
-
-    - name: Get pods to drain
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Pod
-        field_selectors:
-          - spec.nodeName={{ inventory_hostname }}
-      register: k3s_node_maintenance_node_pods
-
-    - name: Filter drainable pods
-      ansible.builtin.set_fact:
-        k3s_node_maintenance_pods_to_drain: |
-          {%- set filtered_pods = [] -%}
-          {%- for pod in k3s_node_maintenance_node_pods.resources -%}
-            {%- set is_daemonset = false -%}
-            {%- if pod.metadata.ownerReferences is defined -%}
-              {%- for owner in pod.metadata.ownerReferences -%}
-                {%- if owner.kind == "DaemonSet" -%}
-                  {%- set is_daemonset = true -%}
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-            {%- if not is_daemonset and pod.metadata.namespace != "kube-system" -%}
-              {%- set _ = filtered_pods.append(pod) -%}
-            {%- endif -%}
-          {%- endfor -%}
-          {{ filtered_pods }}
-
-    - name: Node drain status
-      ansible.builtin.debug:
-        msg: "🔄 Draining {{ k3s_node_maintenance_pods_to_drain | length }} pods from {{ inventory_hostname }}"
-      when: k3s_node_maintenance_pods_to_drain | length > 0
-
-    - name: Drain pods from node
-      kubernetes.core.k8s:
-        api_version: v1
-        kind: Pod
-        name: "{{ item.metadata.name }}"
-        namespace: "{{ item.metadata.namespace }}"
-        state: absent
-        wait: true
-        wait_timeout: 60
-        delete_options:
-          gracePeriodSeconds: 30
-      loop: "{{ k3s_node_maintenance_pods_to_drain }}"
-      loop_control:
-        label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
-      register: k3s_node_maintenance_drain_result
+            allowScheduling: true
+      register: k3s_node_maintenance_longhorn_rollback
       failed_when: false
+      when: k3s_node_maintenance_longhorn_scheduling_changed | default(false) | bool
+      tags: [always, longhorn]
 
-    - name: Drain completed
-      ansible.builtin.debug:
-        msg: "✅ Node drain completed - ready for maintenance"
+    - name: Stop after node preparation failure
+      ansible.builtin.fail:
+        msg: >-
+          Preparation failed for {{ k3s_node_maintenance_kubernetes_node_name }}.
+          Scheduling rollback was attempted before stopping maintenance.
+          Original error: {{ ansible_failed_result.msg | default('unknown error') }}
+      tags: [always]
+
+- name: Node preparation completed
+  ansible.builtin.debug:
+    msg: >-
+      Node {{ k3s_node_maintenance_kubernetes_node_name }} is ready for maintenance
+      {{ '(drain skipped)' if k3s_node_maintenance_skip_drain | bool else '(drain completed)' }}
+  tags: [cluster, prepare, drain]

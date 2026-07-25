@@ -18,7 +18,7 @@ else
   uv venv
 fi
 
-# Install Python deps from pyproject.toml / uv.lock if present, else fall back to requirements.txt
+# Install Python dependencies from pyproject.toml and uv.lock when present
 if [[ -f "pyproject.toml" ]]; then
   if [[ "${LOCK}" == "true" && -f "uv.lock" ]]; then
     uv sync --frozen --extra ansible
@@ -29,11 +29,11 @@ fi
 
 # Install required Ansible collections
 if [[ -f "collections/requirements.yml" ]]; then
-  uvx --from ansible-core ansible-galaxy collection install -r collections/requirements.yml
+  uv run ansible-galaxy collection install -r collections/requirements.yml
 else
-  uvx --from ansible-core ansible-galaxy collection install kubernetes.core
+  uv run ansible-galaxy collection install kubernetes.core
 fi
 
 uv run python -c 'import sys; print("Interpreter:", sys.executable)'
-uvx --from ansible-core ansible --version || true
-uvx --from ansible-core ansible-galaxy --version || true
+uv run ansible --version
+uv run ansible-galaxy --version

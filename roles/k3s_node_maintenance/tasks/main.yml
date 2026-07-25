@@ -18,35 +18,37 @@
 
 - name: Include package update checks
   ansible.builtin.include_tasks: package_checks.yml
-  tags: [packages, check_updates]
+  tags: [packages, check_updates, debian, redhat, reboot, reboot_check]
 
 - name: Include Longhorn health validation (pre-maintenance)
   ansible.builtin.include_tasks: longhorn_validation.yml
+  when: k3s_node_maintenance_longhorn_enabled | bool
   tags: [longhorn, health, pre_check]
 
 - name: Include cluster preparation
   ansible.builtin.include_tasks: cluster_preparation.yml
-  tags: [cluster, prepare]
+  tags: [cluster, prepare, drain]
 
 - name: Include package updates
   ansible.builtin.include_tasks: package_updates.yml
-  tags: [packages, updates]
+  tags: [packages, updates, debian, redhat, reboot_check]
 
 - name: Include reboot handling
   ansible.builtin.include_tasks: reboot_handling.yml
-  tags: [reboot]
+  tags: [reboot, reboot_server, reboot_wait, reboot_ready]
 
 - name: Include cluster restoration
   ansible.builtin.include_tasks: cluster_restoration.yml
-  tags: [restore]
+  tags: [cluster, restore, uncordon]
 
 - name: Include Longhorn health validation (post-maintenance)
   ansible.builtin.include_tasks: longhorn_validation.yml
+  when: k3s_node_maintenance_longhorn_enabled | bool
   tags: [longhorn, health, post_check]
 
 - name: Include final cluster validation
   ansible.builtin.include_tasks: final_validation.yml
-  tags: [validation, final]
+  tags: [validation, final, cluster_health]
 
 # Resume task for manual recovery after reboot issues
 # Only runs when explicitly called with --tags resume

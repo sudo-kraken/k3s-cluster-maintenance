@@ -1,8 +1,4 @@
 ---
-# Variables specific to K3s worker nodes
-k3s_node_maintenance_node_type: "worker"
-k3s_node_maintenance_critical_node: false
-
 # Workers can be handled more aggressively
 k3s_node_maintenance_drain_timeout: 300  # Standard timeout
 k3s_node_maintenance_wait_timeout: 600   # Standard wait time
