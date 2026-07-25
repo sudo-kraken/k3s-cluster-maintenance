@@ -8,7 +8,7 @@ _A modular Ansible role and playbook for safe, sequential operating system patch
 
 <div align="center">
 
-[![Ansible](https://img.shields.io/badge/Ansible-Required-red.svg?style=for-the-badge)](https://ansible.com) [![Ansible Version](https://img.shields.io/badge/Ansible-2.19.3%2B-blue?logo=ansible&style=for-the-badge)](https://docs.ansible.com/)
+[![Ansible](https://img.shields.io/badge/Ansible-Required-red.svg?style=for-the-badge)](https://ansible.com) [![Ansible Version](https://img.shields.io/badge/Ansible-2.20.7%2B-blue?logo=ansible&style=for-the-badge)](https://docs.ansible.com/)
 
 </div>
 
@@ -104,7 +104,7 @@ group_vars/
 
 - K3s cluster, single or multi-node
 - Python 3.12 or newer and [uv](https://docs.astral.sh/uv/)
-- Ansible Core 2.19.3 or newer
+- Ansible Core 2.20.7 or newer
 - Python 3.9 or newer on each managed node
 - A working Kubernetes kubeconfig on the Ansible controller
 - SSH access to all nodes with key-based authentication

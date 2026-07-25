@@ -95,7 +95,7 @@ ansible-playbook -i hosts.yml maintenance.yml --tags resume \
 
 ## Dependencies
 
-- Ansible Core 2.19.3 or newer
+- Ansible Core 2.20.7 or newer
 - `kubernetes.core` collection
 - Python Kubernetes client on the controller
 - Python 3.9 or newer on managed nodes
