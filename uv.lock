@@ -40,7 +40,7 @@ wheels = [
 
 [[package]]
 name = "ansible-lint"
-version = "26.4.0"
+version = "26.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ansible-compat" },
@@ -61,9 +61,9 @@ dependencies = [
     { name = "wcmatch" },
     { name = "yamllint" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/39/54f7cc264f7f02c635af786c4a57da4ab993865140f90e031cdec39dd514/ansible_lint-26.4.0.tar.gz", hash = "sha256:29e0438f8af685a4fec96f9ea3404a3beb50d2911bc8df43f283256954ceea5b", size = 736853, upload-time = "2026-04-01T14:41:02.138Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/17/23a03a6595a42445095da9d73883aeb2432002ecb4c130628a6241d44eb9/ansible_lint-26.8.0.tar.gz", hash = "sha256:65cb5efab1ffaedbe23af0fff241a8834294f8ac80a8c838c2143024afc103a4", size = 776383, upload-time = "2026-08-12T07:23:04.006Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/97/803cde1dba6c5cc24f1401b37df8404a2793bd26dc3f11c0a9722109b859/ansible_lint-26.4.0-py3-none-any.whl", hash = "sha256:f33c4823544a5a8e5e36614866e111d1a929eeffee5e84481ede10d524a9d6d6", size = 330939, upload-time = "2026-04-01T14:41:00.083Z" },
+    { url = "https://files.pythonhosted.org/packages/69/27/c9707a6165683c85ff67cb8e5efa5238ecf26dac0626955971ef02108e84/ansible_lint-26.8.0-py3-none-any.whl", hash = "sha256:94e58501cc7fafaa505dd9daea3bddb4affa6e8efe8217323c06d7194a312f57", size = 334972, upload-time = "2026-08-12T07:23:02.284Z" },
 ]
 
 [[package]]
@@ -554,7 +554,7 @@ ansible = [
 [package.metadata]
 requires-dist = [
     { name = "ansible-core", marker = "extra == 'ansible'", specifier = ">=2.20.7" },
-    { name = "ansible-lint", marker = "extra == 'ansible'", specifier = "~=26.4.0" },
+    { name = "ansible-lint", marker = "extra == 'ansible'", specifier = "~=26.8.0" },
     { name = "bcrypt", marker = "extra == 'ansible'", specifier = "~=5.0.0" },
     { name = "cryptography", marker = "extra == 'ansible'", specifier = ">=48.0.1,<49" },
     { name = "dnspython", marker = "extra == 'ansible'", specifier = "~=2.8.0" },
